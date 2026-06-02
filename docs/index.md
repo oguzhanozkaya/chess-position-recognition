@@ -5,7 +5,7 @@ hide:
   - toc
 ---
 
-# Inflation Forecasting {: align="center" }
+# Turkish Inflation Forecasting {: align="center" }
 
 <div class="grid cards" markdown>
 

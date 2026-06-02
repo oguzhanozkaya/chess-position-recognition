@@ -18,14 +18,14 @@ description: System Architecture.
 
 | Area               | Decision                                                      |
 | ------------------ | ------------------------------------------------------------- |
-| Python package     | `src/inflation_forecasting/`                                  |
+| Python package     | `src/turkish_inflation_forecasting/`                          |
 | Target             | Next-month CPI MoM                                            |
 | Modeling framework | Raw PyTorch for deep learning                                 |
 | Baselines          | Naive, rolling mean, and classical machine learning models    |
 | Text objective     | Inflation-pressure representation, not generic sentiment      |
 | Validation         | Chronological split and rolling-origin backtesting            |
 | Data storage       | Generated datasets under `data/`, source-controlled code only |
-| Command interface  | `just` recipes wrapping `uv run` commands                     |
+| Command interface  | `just` recipes wrapping stage-specific console entrypoints    |
 
 ## Data Flow
 

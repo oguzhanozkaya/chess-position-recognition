@@ -22,9 +22,10 @@ The target repository structure is command-first and package-based. Generated da
 │   ├── predictions/            # Forecast outputs
 │   └── reports/                # Metrics and generated summaries
 ├── src/                        # Python source tree
-│   └── inflation_forecasting/
-│       ├── cli.py              # Command-line entry point
+│   └── turkish_inflation_forecasting/
 │       ├── config.py           # Paths and shared configuration
+│       ├── pipeline.py         # Shared stage functions
+│       ├── entrypoints/        # Stage-specific console entrypoints
 │       ├── data/               # Downloads, scraping, preprocessing, alignment
 │       ├── features/           # Numeric and text feature generation
 │       ├── models/             # Baselines and PyTorch model definitions
@@ -43,16 +44,17 @@ The target repository structure is command-first and package-based. Generated da
 └── zensical.toml               # Website configuration
 ```
 
-Some directories may be created as implementation reaches the corresponding stage. The layout above is the target structure the codebase should converge to.
+Some directories may receive additional modules as implementation reaches the corresponding stage. The layout above is the target structure the codebase should converge to.
 
-## Python Package (`src/inflation_forecasting/`)
+## Python Package (`src/turkish_inflation_forecasting/`)
 
-The project uses a named package under `src/` instead of placing importable modules directly in `src/`. This keeps imports stable in tests, command-line entry points, and future packaging metadata.
+The project uses a named package under `src/` instead of placing importable modules directly in `src/`. This keeps imports stable in tests, console entrypoints, and future packaging metadata.
 
 | Path             | Responsibility                                                                         |
 | ---------------- | -------------------------------------------------------------------------------------- |
-| `cli.py`         | Dispatches pipeline commands such as download, preprocess, train, and evaluate         |
 | `config.py`      | Defines project paths, default file names, and shared constants                        |
+| `pipeline.py`    | Contains shared stage behavior used by the console entrypoints                         |
+| `entrypoints/`   | Defines one console entrypoint per stage without subcommand flags                      |
 | `data/`          | Downloads source files, scrapes text, normalizes data, and aligns monthly observations |
 | `features/`      | Builds lagged, rolling, transformed, tokenized, and windowed features                  |
 | `models/`        | Contains baselines, numeric sequence models, text encoders, and fusion models          |
@@ -61,10 +63,10 @@ The project uses a named package under `src/` instead of placing importable modu
 | `visualization/` | Produces plots used by reports, documentation, and the article                         |
 | `utils/`         | Shared logging, seed control, serialization, and small helpers                         |
 
-The package name should be `inflation_forecasting`. The import path should look like:
+The package name is `turkish_inflation_forecasting`. The import path looks like:
 
 ```python
-from inflation_forecasting.data import preprocess
+from turkish_inflation_forecasting.data import preprocess
 ```
 
 ## Data Directories
@@ -103,23 +105,23 @@ Selected small figures may be copied into documentation assets only when they ar
 
 ## Command Interface
 
-Project commands are standardized through `justfile`. Recipes should call `uv run` internally so development, automation, and documentation use the same commands.
+Project commands are standardized through `justfile`. Recipes call stage-specific console entrypoints through `uv run` so development, automation, and documentation use the same commands.
 
-Planned stage-level command mapping:
+Stage-level command mapping:
 
-| Recipe            | Responsibility                                  |
-| ----------------- | ----------------------------------------------- |
-| `just sync`       | Install or update the Python environment        |
-| `just download`   | Download numeric data and text sources          |
-| `just preprocess` | Clean raw sources and build interim tables      |
-| `just features`   | Build model-ready numeric and text features     |
-| `just train`      | Train baselines and deep learning models        |
-| `just evaluate`   | Evaluate models on chronological splits         |
-| `just plots`      | Generate figures for reports and article drafts |
-| `just run`        | Run the complete pipeline                       |
-| `just check`      | Run formatting and lint checks                  |
-| `just fix`        | Apply automated formatting and lint fixes       |
-| `just ci`         | Run the full verification gate                  |
+| Recipe            | Console entrypoint               | Responsibility                                  |
+| ----------------- | -------------------------------- | ----------------------------------------------- |
+| `just sync`       | `uv sync`                        | Install or update the Python environment        |
+| `just download`   | `turkish-inflation-download`     | Download numeric data and text sources          |
+| `just preprocess` | `turkish-inflation-preprocess`   | Clean raw sources and build interim tables      |
+| `just features`   | `turkish-inflation-features`     | Build model-ready numeric and text features     |
+| `just train`      | `turkish-inflation-train`        | Train baselines and deep learning models        |
+| `just evaluate`   | `turkish-inflation-evaluate`     | Evaluate models on chronological splits         |
+| `just plots`      | `turkish-inflation-plots`        | Generate figures for reports and article drafts |
+| `just run`        | `turkish-inflation-run`          | Run the complete pipeline                       |
+| `just check`      | formatting and lint commands     | Run formatting and lint checks                  |
+| `just fix`        | formatting and lint fix commands | Apply automated formatting and lint fixes       |
+| `just ci`         | `just check` and `just test`     | Run the full verification gate                  |
 
 ### Deployment
 

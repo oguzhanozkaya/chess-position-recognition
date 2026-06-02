@@ -19,7 +19,7 @@ description: Conventions, rules and policies for project development.
 
 - Quote style: double
 - Indent style: space
-- Importable code lives under `src/inflation_forecasting/`.
+- Importable code lives under `src/turkish_inflation_forecasting/`.
 - Generated data, reports, figures, and checkpoints are not source code.
 
 ### Modeling Rules
@@ -46,7 +46,7 @@ description: Conventions, rules and policies for project development.
 - `just run` runs the main pipeline when implementation is complete.
 - `just docs` serves the documentation site locally.
 
-Planned pipeline commands:
+Pipeline commands:
 
 - `just download` downloads or scrapes source data.
 - `just preprocess` cleans raw source files and builds interim tables.
@@ -75,7 +75,7 @@ Tests should focus on deterministic project logic rather than model quality.
 | Leakage prevention   | CPI releases, macro indicators, and text documents must respect cutoff dates   |
 | Dataset construction | Input windows must point to the correct next-month CPI MoM target              |
 | Metrics              | MAE, RMSE, direction accuracy, and baseline comparisons                        |
-| CLI                  | Smoke tests for pipeline subcommands where feasible                            |
+| Entrypoints          | Smoke tests for stage-specific console entrypoints where feasible              |
 
 Training quality should be verified with reports and metrics, not unit tests.
 

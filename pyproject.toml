@@ -5,20 +5,26 @@ build-backend = "uv_build"
 [project]
 name = "turkish-inflation-forecasting"
 version = "0.1.0"
-requires-python = ">=3.14"
+requires-python = ">=3.12,<3.13"
 dependencies = [
 ]
 
 [tool.uv.build-backend]
-module-name = ["src"]
+module-name = "turkish_inflation_forecasting"
 module-root = "src"
-namespace = true
 
 [project.scripts]
-main = "src.main.__main__:main"
+turkish-inflation-download = "turkish_inflation_forecasting.entrypoints.download:main"
+turkish-inflation-preprocess = "turkish_inflation_forecasting.entrypoints.preprocess:main"
+turkish-inflation-features = "turkish_inflation_forecasting.entrypoints.features:main"
+turkish-inflation-train = "turkish_inflation_forecasting.entrypoints.train:main"
+turkish-inflation-evaluate = "turkish_inflation_forecasting.entrypoints.evaluate:main"
+turkish-inflation-plots = "turkish_inflation_forecasting.entrypoints.plots:main"
+turkish-inflation-run = "turkish_inflation_forecasting.entrypoints.run:main"
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.1",
     "ruff>=0.15.13",
     "ty>=0.0.39",
 ]
@@ -26,5 +32,5 @@ docs = ["zensical>=0.0.43"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py314"
+target-version = "py312"
 lint.select = ["E", "F", "I", "UP"]

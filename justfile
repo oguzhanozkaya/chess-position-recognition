@@ -8,11 +8,41 @@
 sync:
   uv sync
 
-# Run the main entry point
+# Run the full pipeline
 [default]
 [group('run')]
 run:
-  uv run main
+  uv run turkish-inflation-run
+
+# Download numeric data and text sources
+[group('run')]
+download:
+  uv run turkish-inflation-download
+
+# Clean raw source files and build interim tables
+[group('run')]
+preprocess:
+  uv run turkish-inflation-preprocess
+
+# Build model-ready numeric and text features
+[group('run')]
+features:
+  uv run turkish-inflation-features
+
+# Train baselines and deep learning models
+[group('run')]
+train:
+  uv run turkish-inflation-train
+
+# Evaluate models on chronological splits
+[group('run')]
+evaluate:
+  uv run turkish-inflation-evaluate
+
+# Generate figures for reports and article drafts
+[group('run')]
+plots:
+  uv run turkish-inflation-plots
 
 
 # Fix: format and lint
@@ -32,7 +62,7 @@ check:
 # Run tests
 [group('qual')]
 test:
-  echo "Tests"
+  uv run pytest
 
 # Full check + test gate (github ci runs this command)
 [group('qual')]
@@ -47,7 +77,7 @@ clean:
 # Remove all output and generated artifacts
 [group('clean')]
 clean-outputs:
-  rm -rf output/
+  rm -rf output/figures/* output/models/* output/predictions/* output/reports/*
 
 
 # Clean and start docs website at localhost

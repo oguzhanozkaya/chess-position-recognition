@@ -111,7 +111,7 @@ The final pipeline should be runnable from a single command:
 just run
 ```
 
-During development, the full pipeline should also expose stage-level commands:
+The project also exposes stage-level commands:
 
 ```bash
 just download
@@ -122,7 +122,7 @@ just evaluate
 just plots
 ```
 
-These stage-level commands are part of the planned project workflow and should be added as the corresponding implementation stages are created.
+The current foundation registers these commands as separate console entrypoints. The real data and modeling logic should replace the placeholder stage behavior as implementation progresses.
 
 ## Success Criteria
 

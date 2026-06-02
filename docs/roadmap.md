@@ -6,29 +6,29 @@ description: Tasks, priorities, known bugs, and the project roadmap.
 
 ## Status Overview
 
-The repository is in the planning and scaffolding stage. The immediate goal is to define the project structure, reproducibility contract, command workflow, and implementation milestones before building the data and modeling pipeline.
+The repository is in the foundation stage. The project structure, reproducibility contract, command workflow, and implementation milestones are documented. The next goal is to replace the stage entrypoint placeholders with real data and modeling logic.
 
-| Area                     | Status      |
-| ------------------------ | ----------- |
-| Documentation structure  | In progress |
-| Python package structure | Planned     |
-| Data download pipeline   | Planned     |
-| Text collection pipeline | Planned     |
-| Feature generation       | Planned     |
-| Baselines                | Planned     |
-| Deep learning models     | Planned     |
-| Evaluation reports       | Planned     |
-| Article draft            | Planned     |
+| Area                     | Status                 |
+| ------------------------ | ---------------------- |
+| Documentation structure  | In progress            |
+| Python package structure | Foundation implemented |
+| Command workflow         | Foundation implemented |
+| Data download pipeline   | Planned                |
+| Text collection pipeline | Planned                |
+| Feature generation       | Planned                |
+| Baselines                | Planned                |
+| Deep learning models     | Planned                |
+| Evaluation reports       | Planned                |
+| Article draft            | Planned                |
 
 ## Active Tasks
 
-| Priority | Task                                                   | Exit Criteria                                                                      |
-| -------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| High     | Finalize documentation and repository structure        | `docs/` explains scope, architecture, structure, development workflow, and roadmap |
-| High     | Migrate Python package to `src/inflation_forecasting/` | Package imports work and CLI entry point is configured                             |
-| High     | Add reproducible project commands                      | `just --list` exposes pipeline, docs, quality, and test commands                   |
-| High     | Define source registry                                 | Numeric and text sources have documented download metadata                         |
-| High     | Build CPI target pipeline                              | CPI MoM target is reproducibly generated without leakage                           |
+| Priority | Task                                       | Exit Criteria                                                        |
+| -------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| High     | Define source registry                     | Numeric and text sources have documented download metadata           |
+| High     | Build CPI target pipeline                  | CPI MoM target is reproducibly generated without leakage             |
+| High     | Implement official text collection         | Text documents and metadata are downloaded reproducibly              |
+| High     | Replace stage placeholders with real logic | `just download`, `preprocess`, and `features` produce real artifacts |
 
 ## Milestones
 
@@ -37,8 +37,8 @@ The repository is in the planning and scaffolding stage. The immediate goal is t
 | Task                                           | Output                                                               |
 | ---------------------------------------------- | -------------------------------------------------------------------- |
 | Document architecture and repository structure | Updated `docs/` pages                                                |
-| Create package layout                          | `src/inflation_forecasting/`                                         |
-| Configure CLI skeleton                         | Stage-level commands callable through `uv run` and `just`            |
+| Create package layout                          | `src/turkish_inflation_forecasting/`                                 |
+| Configure stage entrypoints                    | Stage-level commands callable through `uv run` and `just`            |
 | Add tests directory and fixtures policy        | Deterministic tests can be added without committing full datasets    |
 | Update ignore rules                            | Generated `data/` and `output/` artifacts stay out of source control |
 
@@ -95,11 +95,16 @@ The repository is in the planning and scaffolding stage. The immediate goal is t
 
 - Initial documentation scaffold exists.
 - `uv`, `just`, and Zensical are already present in the repository template.
+- Python package foundation exists under `src/turkish_inflation_forecasting/`.
+- Stage-specific console entrypoints are registered through `pyproject.toml`.
+- `just` exposes pipeline, quality, test, and documentation commands.
+- Generated `data/` and `output/` directory placeholders are tracked while generated contents are ignored.
+- Initial smoke tests cover path setup and stage entrypoint behavior.
 
 ## Limitations
 
-- The current repository is not yet a runnable forecasting pipeline.
-- Stage-level data and modeling commands are planned but not implemented yet.
+- The current repository has runnable stage placeholders, not a complete forecasting pipeline.
+- Stage-level data and modeling commands are registered but their real implementation is pending.
 - Data source availability and publication-delay handling still need implementation validation.
 - Text collection should start with stable official sources before broader news scraping.
 

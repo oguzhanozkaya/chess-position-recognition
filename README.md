@@ -1,4 +1,4 @@
-# Inflation Forecasting
+# Turkish Inflation Forecasting
 
 **[Web Page and Documentation](https://oguzhanozkaya.github.io/turkish-inflation-forecasting/)**
 

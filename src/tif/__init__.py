@@ -1,5 +1,1 @@
-"""Turkish inflation forecasting package."""
-
-__all__ = ["__version__"]
-
-__version__ = "0.1.0"
+"""Console entrypoints for project stages."""

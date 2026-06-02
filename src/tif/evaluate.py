@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+import tif.utils
 
 
 @dataclass(frozen=True)
@@ -113,3 +112,16 @@ def evaluate_predictions(paths: ProjectPaths = DEFAULT_PATHS) -> EvaluationResul
         metrics_markdown_path=metrics_markdown_path,
         metric_rows=len(metrics),
     )
+
+
+def main() -> int:
+    try:
+        result = evaluate_predictions(DEFAULT_PATHS)
+    except (EvaluationError, ValueError, FileNotFoundError) as exc:
+        print(f"evaluate: {exc}")
+        return 1
+    print(
+        f"evaluate: wrote {result.metric_rows} metric rows to {result.metrics_json_path.relative_to(DEFAULT_PATHS.root)}"
+    )
+    print(f"evaluate: wrote markdown report to {result.metrics_markdown_path.relative_to(DEFAULT_PATHS.root)}")
+    return 0

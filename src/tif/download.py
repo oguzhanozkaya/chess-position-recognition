@@ -7,18 +7,9 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-
 import requests
 
-from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
-from tif.data.fx import (
-    cbrt_fx_raw_path_for_date,
-    cbrt_fx_url_for_date,
-    iter_month_starts,
-    month_end_candidates,
-)
-from tif.data.sources import SOURCE_REGISTRY, SourceDefinition, sources_by_category
-from tif.data.text import extract_cbrt_text_links
+import tif.utils
 
 USER_AGENT = "turkish-inflation-forecasting/0.1 (+https://github.com/oguzhanozkaya/turkish-inflation-forecasting)"
 
@@ -48,7 +39,7 @@ def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def source_registry_records(sources: tuple[SourceDefinition, ...] = SOURCE_REGISTRY) -> list[dict[str, str]]:
+def source_registry_records(sources: tuple[utils.SourceDefinition, ...] = utils.SOURCE_REGISTRY) -> list[dict[str, str]]:
     return [asdict(source) | {"raw_path": source.raw_path.as_posix()} for source in sources]
 
 
@@ -226,3 +217,15 @@ def download_sources(
         failed_ids = ", ".join(record.source_id for record in failed)
         raise DownloadError(f"Failed to download required sources: {failed_ids}")
     return records
+
+def main() -> int:
+    try:
+        records = download_sources(DEFAULT_PATHS)
+    except DownloadError as exc:
+        print(f"download: {exc}")
+        return 1
+    print(f"download: downloaded {len(records)} raw sources.")
+    print(
+        f"download: manifest written to {(DEFAULT_PATHS.raw_data / 'source_manifest.json').relative_to(DEFAULT_PATHS.root)}"
+    )
+    return 0

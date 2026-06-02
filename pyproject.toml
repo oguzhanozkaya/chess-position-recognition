@@ -22,13 +22,12 @@ module-name = "tif"
 module-root = "src"
 
 [project.scripts]
-tif-download = "tif.entrypoints.download:main"
-tif-preprocess = "tif.entrypoints.preprocess:main"
-tif-features = "tif.entrypoints.features:main"
-tif-train = "tif.entrypoints.train:main"
-tif-evaluate = "tif.entrypoints.evaluate:main"
-tif-plots = "tif.entrypoints.plots:main"
-tif-run = "tif.entrypoints.run:main"
+tif-download = "tif.download:main"
+tif-preprocess = "tif.preprocess:main"
+tif-features = "tif.features:main"
+tif-train = "tif.train:main"
+tif-evaluate = "tif.evaluate:main"
+tif-plots = "tif.plots:main"
 
 [dependency-groups]
 dev = [

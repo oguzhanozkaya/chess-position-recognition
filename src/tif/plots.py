@@ -9,7 +9,7 @@ from pathlib import Path
 import matplotlib
 import pandas as pd
 
-from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+import tif.utils
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt  # noqa: E402
@@ -126,3 +126,15 @@ def generate_plots(paths: ProjectPaths = DEFAULT_PATHS) -> PlotResult:
     figure_paths.append(path)
 
     return PlotResult(figure_paths=tuple(figure_paths))
+
+
+def main() -> int:
+    try:
+        result = generate_plots(DEFAULT_PATHS)
+    except (PlotError, ValueError, FileNotFoundError) as exc:
+        print(f"plots: {exc}")
+        return 1
+    print(f"plots: wrote {len(result.figure_paths)} figures")
+    for figure_path in result.figure_paths:
+        print(f"plots: wrote {figure_path.relative_to(DEFAULT_PATHS.root)}")
+    return 0

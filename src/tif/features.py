@@ -7,11 +7,10 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
-from tif.config import DEFAULT_PATHS, ProjectPaths, ensure_generated_directories
+import tif.utils
 
 TOKEN_PATTERN = re.compile(r"\b\w+\b", re.UNICODE)
 PAD_TOKEN = "<pad>"
@@ -25,7 +24,6 @@ DELAYED_MACRO_LAGS = (2, 3, 6, 12)
 ROLLING_WINDOWS = (3, 6, 12)
 TEXT_LOOKBACK_MONTHS = 12
 MAX_VOCAB_SIZE = 5000
-MAX_TEXT_TOKENS = 256
 
 
 @dataclass(frozen=True)
@@ -315,3 +313,21 @@ def generate_features(paths: ProjectPaths = DEFAULT_PATHS) -> FeatureGenerationR
         numeric_feature_count=len(metadata["numeric_feature_columns"]),
         vocabulary_size=len(vocabulary),
     )
+
+
+def main() -> int:
+    try:
+        result = generate_features(DEFAULT_PATHS)
+    except (FeatureGenerationError, ValueError, FileNotFoundError) as exc:
+        print(f"features: {exc}")
+        return 1
+    print(
+        "features: wrote "
+        f"{result.row_count} model rows with {result.numeric_feature_count} numeric features to "
+        f"{result.dataset_path.relative_to(DEFAULT_PATHS.root)}"
+    )
+    print(
+        "features: wrote vocabulary with "
+        f"{result.vocabulary_size} tokens to {result.vocabulary_path.relative_to(DEFAULT_PATHS.root)}"
+    )
+    return 0

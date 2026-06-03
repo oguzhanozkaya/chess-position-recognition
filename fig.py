@@ -52,7 +52,7 @@ WEIGHT_DECAY = 0.0001
 EARLY_STOPPING_MIN_DELTA = 0.001
 DEVICE = "cuda"
 CUTOFF_MINUTE = 60
-MAX_TOKENS = 256
+MAX_TOKENS = 1024
 MAX_VOCAB_SIZE = 600
 TOP_PLAY_TYPES = 30
 TOP_KEY_EVENT_TYPES = 24
@@ -379,6 +379,118 @@ def encode_text(text: str, vocabulary: dict[str, int], max_tokens: int) -> list[
     return token_ids
 
 
+def _join_texts(series: pd.Series) -> str:
+    return " ".join(value for value in series.dropna().astype(str) if value)
+
+
+def build_text_by_event(plays: pd.DataFrame, key_events: pd.DataFrame, commentary: pd.DataFrame) -> pd.Series:
+    frames = []
+    for frame in (plays, key_events, commentary):
+        if not frame.empty:
+            frames.append(frame[["eventId", "text_combined"]])
+    if not frames:
+        return pd.Series(dtype=str)
+    text_rows = pd.concat(frames, ignore_index=True)
+    return text_rows.groupby("eventId")["text_combined"].agg(_join_texts)
+
+
+def add_event_aggregates(
+    features: pd.DataFrame,
+    events: pd.DataFrame,
+    fixtures: pd.DataFrame,
+    *,
+    prefix: str,
+    type_column: str,
+    type_values: list[int],
+) -> None:
+    if events.empty:
+        return
+    enriched = events.merge(fixtures[["eventId", "homeTeamId", "awayTeamId"]], on="eventId", how="left")
+    features.loc[:, f"{prefix}_count"] = features[f"{prefix}_count"].add(
+        enriched.groupby("eventId").size(), fill_value=0
+    )
+
+    team_id = pd.to_numeric(enriched["teamId"], errors="coerce")
+    home_team_id = pd.to_numeric(enriched["homeTeamId"], errors="coerce")
+    away_team_id = pd.to_numeric(enriched["awayTeamId"], errors="coerce")
+    enriched["side"] = np.select([team_id == home_team_id, team_id == away_team_id], ["home", "away"], default="")
+    side_counts = (
+        enriched[enriched["side"].isin(["home", "away"])].groupby(["eventId", "side"]).size().unstack(fill_value=0)
+    )
+    for side in ("home", "away"):
+        if side in side_counts:
+            features.loc[:, f"{side}_{prefix}_count"] = features[f"{side}_{prefix}_count"].add(
+                side_counts[side], fill_value=0
+            )
+
+    scoring = pd.to_numeric(enriched["scoringPlay"], errors="coerce").fillna(0).astype(float)
+    scoring_rows = enriched[scoring == 1.0]
+    if not scoring_rows.empty:
+        scoring_counts = scoring_rows.groupby("eventId").size()
+        features.loc[:, "scoring_play_count"] = features["scoring_play_count"].add(scoring_counts, fill_value=0)
+        goal_counts = (
+            scoring_rows[scoring_rows["side"].isin(["home", "away"])]
+            .groupby(["eventId", "side"])
+            .size()
+            .unstack(fill_value=0)
+        )
+        for side in ("home", "away"):
+            if side in goal_counts:
+                features.loc[:, f"{side}_goals"] = features[f"{side}_goals"].add(goal_counts[side], fill_value=0)
+
+    if type_values:
+        typed = enriched[enriched[type_column].notna()].copy()
+        typed[type_column] = pd.to_numeric(typed[type_column], errors="coerce")
+        typed = typed[typed[type_column].isin(type_values)]
+        if not typed.empty:
+            type_counts = pd.crosstab(typed["eventId"], typed[type_column].astype(int))
+            type_counts = type_counts.rename(columns={value: f"{prefix}_type_{value}" for value in type_counts.columns})
+            for column in type_counts.columns:
+                if column in features:
+                    features.loc[:, column] = features[column].add(type_counts[column], fill_value=0)
+
+
+def build_position_features(plays: pd.DataFrame, key_events: pd.DataFrame) -> pd.DataFrame:
+    frames = []
+    for frame in (plays, key_events):
+        if frame.empty:
+            continue
+        x_column = "fieldpositionX" if "fieldpositionX" in frame.columns else "fieldPositionX"
+        if x_column not in frame.columns or "fieldPositionY" not in frame.columns:
+            continue
+        positions = frame[["eventId", x_column, "fieldPositionY"]].copy()
+        positions = positions.rename(columns={x_column: "mean_field_x", "fieldPositionY": "mean_field_y"})
+        positions[["mean_field_x", "mean_field_y"]] = positions[["mean_field_x", "mean_field_y"]].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        positions = positions.replace(0, np.nan).dropna(subset=["mean_field_x", "mean_field_y"])
+        if not positions.empty:
+            frames.append(positions)
+    if not frames:
+        return pd.DataFrame(columns=["mean_field_x", "mean_field_y"])
+    return pd.concat(frames, ignore_index=True).groupby("eventId")[["mean_field_x", "mean_field_y"]].mean()
+
+
+def build_lineup_feature_frame(lineups: pd.DataFrame, formations: list[str]) -> pd.DataFrame:
+    if lineups.empty:
+        return pd.DataFrame()
+    prepared = lineups[lineups["homeAway"].isin(["home", "away"])].copy()
+    if prepared.empty:
+        return pd.DataFrame()
+    prepared["starter"] = pd.to_numeric(prepared["starter"], errors="coerce").fillna(0.0)
+    starter_counts = prepared.groupby(["eventId", "homeAway"])["starter"].sum().unstack(fill_value=0.0)
+    starter_counts = starter_counts.rename(columns={"home": "home_starter_count", "away": "away_starter_count"})
+
+    pieces = [starter_counts]
+    if formations:
+        selected = prepared[prepared["formation"].astype(str).isin(formations)].copy()
+        if not selected.empty:
+            selected["feature"] = selected["homeAway"].astype(str) + "_formation_" + selected["formation"].astype(str)
+            formation_flags = pd.crosstab(selected["eventId"], selected["feature"]).clip(upper=1).astype(float)
+            pieces.append(formation_flags)
+    return pd.concat(pieces, axis=1)
+
+
 def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict[str, int]]:
     print("preprocess: building fixtures with league-aware chronological splits")
     fixtures = assign_league_chronological_splits(build_fixture_table(config))
@@ -431,100 +543,55 @@ def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict
         *[f"home_formation_{formation}" for formation in formations],
         *[f"away_formation_{formation}" for formation in formations],
     ]
-    play_groups = {int(event_id): group for event_id, group in plays.groupby("eventId")} if not plays.empty else {}
-    key_groups = (
-        {int(event_id): group for event_id, group in key_events.groupby("eventId")} if not key_events.empty else {}
+    print("preprocess: aggregating event features with vectorized groupby operations")
+    features = pd.DataFrame(
+        0.0, index=pd.Index(fixtures["eventId"].astype(int), name="eventId"), columns=numeric_features
     )
-    commentary_groups = (
-        {int(event_id): group for event_id, group in commentary.groupby("eventId")} if not commentary.empty else {}
+    add_event_aggregates(features, plays, fixtures, prefix="play", type_column="typeId", type_values=play_types)
+    add_event_aggregates(
+        features, key_events, fixtures, prefix="key_event", type_column="keyEventTypeId", type_values=key_types
     )
-    lineups_by_event = lineup_features(lineups, formations)
-
-    rows = []
-    for fixture in fixtures.itertuples(index=False):
-        event_id = int(fixture.eventId)
-        home_team_id = int(fixture.homeTeamId)
-        away_team_id = int(fixture.awayTeamId)
-        features = {name: 0.0 for name in numeric_features}
-        texts = []
-
-        for frame, type_column, prefix in (
-            (play_groups.get(event_id, pd.DataFrame()), "typeId", "play"),
-            (key_groups.get(event_id, pd.DataFrame()), "keyEventTypeId", "key_event"),
-        ):
-            for event in frame.itertuples(index=False):
-                features[f"{prefix}_count"] += 1.0
-                team_id = int(event.teamId) if pd.notna(event.teamId) else -1
-                if team_id == home_team_id:
-                    features[f"home_{prefix}_count"] += 1.0
-                elif team_id == away_team_id:
-                    features[f"away_{prefix}_count"] += 1.0
-                if float(getattr(event, "scoringPlay", 0) or 0) == 1.0:
-                    features["scoring_play_count"] += 1.0
-                    if team_id == home_team_id:
-                        features["home_goals"] += 1.0
-                    elif team_id == away_team_id:
-                        features["away_goals"] += 1.0
-                event_type = getattr(event, type_column)
-                if pd.notna(event_type):
-                    name = f"{prefix}_type_{int(event_type)}"
-                    if name in features:
-                        features[name] += 1.0
-                text = str(getattr(event, "text_combined", "") or "")
-                if text:
-                    texts.append(text)
-
-        for event in commentary_groups.get(event_id, pd.DataFrame()).itertuples(index=False):
-            features["commentary_count"] += 1.0
-            text = str(event.text_combined or "")
-            if text:
-                texts.append(text)
-
-        positions = []
-        for frame in (play_groups.get(event_id, pd.DataFrame()), key_groups.get(event_id, pd.DataFrame())):
-            if frame.empty:
-                continue
-            x_column = "fieldpositionX" if "fieldpositionX" in frame.columns else "fieldPositionX"
-            if x_column in frame.columns and "fieldPositionY" in frame.columns:
-                selected = (
-                    frame[[x_column, "fieldPositionY"]]
-                    .apply(pd.to_numeric, errors="coerce")
-                    .replace(0, np.nan)
-                    .dropna()
-                )
-                if not selected.empty:
-                    positions.append(selected.rename(columns={x_column: "x", "fieldPositionY": "y"}))
-        if positions:
-            merged = pd.concat(positions, ignore_index=True)
-            features["mean_field_x"] = float(merged["x"].mean())
-            features["mean_field_y"] = float(merged["y"].mean())
-        features.update(lineups_by_event.get(event_id, {}))
-        features["score_diff"] = features["home_goals"] - features["away_goals"]
-        rows.append(
-            {
-                "eventId": event_id,
-                "date": fixture.date,
-                "league": fixture.midsizeName,
-                "league_key": fixture.league_key,
-                "homeTeamId": home_team_id,
-                "awayTeamId": away_team_id,
-                "homeTeamScore": float(fixture.homeTeamScore),
-                "awayTeamScore": float(fixture.awayTeamScore),
-                "target_label": fixture.target_label,
-                "target": int(fixture.target),
-                "split": fixture.split,
-                "text": " ".join(texts),
-                "numeric_features": [float(features.get(name, 0.0)) for name in numeric_features],
-            }
+    if not commentary.empty:
+        features.loc[:, "commentary_count"] = features["commentary_count"].add(
+            commentary.groupby("eventId").size(), fill_value=0
         )
+    position_features = build_position_features(plays, key_events)
+    for column in position_features.columns:
+        features.loc[:, column] = features[column].add(position_features[column], fill_value=0)
+    lineup_frame = build_lineup_feature_frame(lineups, formations)
+    for column in lineup_frame.columns:
+        if column in features:
+            features.loc[:, column] = features[column].add(lineup_frame[column], fill_value=0)
+    features.loc[:, "score_diff"] = features["home_goals"] - features["away_goals"]
+    features = features.fillna(0.0)
 
-    dataset = pd.DataFrame(rows)
+    dataset = fixtures[
+        [
+            "eventId",
+            "date",
+            "midsizeName",
+            "league_key",
+            "homeTeamId",
+            "awayTeamId",
+            "homeTeamScore",
+            "awayTeamScore",
+            "target_label",
+            "target",
+            "split",
+        ]
+    ].copy()
+    dataset = dataset.rename(columns={"midsizeName": "league"})
+    text_by_event = build_text_by_event(plays, key_events, commentary)
+    dataset["text"] = dataset["eventId"].map(text_by_event).fillna("")
+    dataset["numeric_features"] = (
+        features.reindex(dataset["eventId"].astype(int))[numeric_features].astype(float).values.tolist()
+    )
     vocabulary = build_vocabulary(dataset.loc[dataset["split"] == "train", "text"], config.max_vocab_size)
     dataset["token_ids"] = dataset["text"].map(lambda text: encode_text(text, vocabulary, config.max_tokens))
     metadata = {
         "target_labels": list(LABELS),
         "cutoff_minute": config.cutoff_minute,
-        "model": "first_half_textcnn_numeric_mlp",
+        "model": "first_60_minute_textcnn_numeric_mlp",
         "split_strategy": "chronological_within_each_league_key",
         "numeric_feature_columns": numeric_features,
         "play_type_ids": play_types,

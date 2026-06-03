@@ -77,6 +77,8 @@ Splits are assigned inside each `seasonType-leagueId-year` group. This prevents 
 | Player stats | Excluded until explicit lagging is implemented.                                                                       |
 | Standings    | Excluded until scrape-time snapshots are converted into safe pre-match features.                                      |
 
+Feature construction aggregates play, key-event, commentary, coordinate, and lineup inputs with `eventId` groupby and pivot operations before joining them onto fixtures. This keeps preprocessing on optimized tabular operations instead of Python-level loops over every match event.
+
 ## Model
 
 ```mermaid

@@ -23,7 +23,7 @@ hide:
 
     This project predicts the piece or empty state for every square in a chessboard image. The implementation uses raw PyTorch only: image loading, FEN filename parsing, batching, augmentation, the neural architecture, optimization, evaluation, and artifact generation are implemented in `cpr.py` without fastai, pretrained models, or pretrained weights.
 
-    **Dataset**: [Chess Positions](https://www.kaggle.com/datasets/koryakinp/chess-positions)
+    **Dataset**: [**Chess Positions**](https://www.kaggle.com/datasets/koryakinp/chess-positions)
 
     **Student**: Oğuzhan Özkaya
 

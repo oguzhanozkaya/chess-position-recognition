@@ -6,11 +6,9 @@
     Predicting football match outcomes at minute 45 using deep learning.
 </h3>
 
-<h3 align="center" style="margin: 1em;">
+<h3 align="center" style="margin: 1em; margin-bottom: 3em;">
     <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
 </h3>
-
----
 
 This project predicts whether the final result will be a home win, draw, or away win using only match information available through minute 45. The core challenge is time alignment: commentary, plays, key events, and lineup-derived inputs must be sliced so later match information cannot leak into the in-play prediction.
 

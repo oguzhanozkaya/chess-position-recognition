@@ -13,11 +13,9 @@ hide:
     Predicting football match outcomes at minute 45 using deep learning.
 </h3>
 
-<h3 align="center" style="margin: 1em;">
+<h3 align="center" style="margin: 1em; margin-bottom: 3em;">
     <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
 </h3>
-
----
 
 <div class="grid cards" markdown>
 

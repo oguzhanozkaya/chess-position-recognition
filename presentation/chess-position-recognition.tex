@@ -301,17 +301,28 @@
 \end{frame}
 
 \begin{frame}
-  \SlideTitle{Results Placeholder}
-  \begin{tabularx}{\textwidth}{@{}lXXX@{}}
+  \SlideTitle{Final Results}
+  \begin{tabularx}{\textwidth}{@{}lXXXX@{}}
     \toprule
-    \textbf{Split} & \textbf{Square Accuracy} & \textbf{Occupied Accuracy} & \textbf{Board Accuracy} \\
+    \textbf{Split} & \textbf{Square} & \textbf{Occupied} & \textbf{Empty} & \textbf{Board} \\
     \midrule
-    Validation & From \texttt{metrics.csv} & After training & After training \\
-    Test & From \texttt{metrics.csv} & After training & After training \\
+    Train & 99.9972\% & 99.9824\% & 100.0000\% & 99.8514\% \\
+    Validation & 99.9961\% & 99.9750\% & 100.0000\% & 99.7875\% \\
+    Test & 99.9979\% & 99.9865\% & 100.0000\% & 99.8750\% \\
     \bottomrule
   \end{tabularx}
   \vspace{1em}
-  {\color{BodyGrey}\small Rebuild this deck after the long run with \texttt{just presentation-build}.}
+  {\color{BodyGrey}\small Final CUDA run: 3 epochs, batch size 192, image size 256, mixed precision. Test split: 20,000 boards, 1,280,000 squares, 27 square errors.}
+\end{frame}
+
+\begin{frame}
+  \SlideTitle{Result Interpretation}
+  \begin{itemize}
+    \item Empty-square accuracy reached 100\% on train, validation, and test.
+    \item Occupied-square accuracy stayed above 99.97\%, so the model did not rely on empty-square dominance.
+    \item Board accuracy is the strict metric: one wrong square fails the board; test board accuracy still reached 99.875\%.
+    \item Remaining test errors were concentrated in rare non-empty classes, especially black queen confusions.
+  \end{itemize}
 \end{frame}
 
 \begin{frame}
@@ -345,10 +356,10 @@
 \begin{frame}
   \SlideTitle{Conclusion}
   \begin{itemize}
-    \item The project has been migrated to chess board position recognition.
+    \item The project implements chess board position recognition end to end.
     \item The model predicts all 64 square labels with one scratch CNN.
     \item Accuracy is measured at square, occupied-square, empty-square, and full-board levels.
-    \item The remaining project work is the long RTX 4080 training run and final result interpretation.
+    \item The final held-out test run reached 99.9979\% square accuracy and 99.8750\% board accuracy.
   \end{itemize}
 \end{frame}
 

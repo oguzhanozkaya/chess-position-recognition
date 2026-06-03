@@ -8,7 +8,7 @@ This project builds an end-to-end chess position recognition pipeline with raw P
 
 The implementation is intentionally command-driven and reproducible. The root script, `cpr.py`, reads local images from `data/train/` and `data/test/` on every run, performs a random validation split from the training directory, trains one residual convolutional neural network, evaluates validation and test performance, and writes report-ready metrics, predictions, figures, and checkpoints under `output/`.
 
-The current article is prepared before the final long GPU training run is complete. Final metric values, plots, and qualitative error analysis are marked with placeholders and should be filled after `just run` finishes on the target RTX 4080 setup.
+The final CUDA training run has been completed, and this article reports the generated validation and held-out test results from the project artifacts.
 
 ## Why This Problem Matters
 
@@ -327,66 +327,85 @@ Board accuracy is intentionally strict. A board with 63 correct squares and one 
 
 ## Results
 
-The final training run is still in progress. This section should be completed after the extended GPU run finishes and the output artifacts are regenerated.
+The final run trained for 3 epochs on CUDA with mixed precision, `IMAGE_SIZE=256`, `BATCH_SIZE=192`, `LEARNING_RATE=1e-5`, `DROPOUT=0.12`, label smoothing of `0.01`, and empty-class loss weight of `0.45`. Early stopping patience was set to 1, and the best checkpoint was selected by validation square accuracy.
 
-### Final Metrics Placeholder
+The model reached near-perfect square-level performance on the held-out test split. The test set contains 20,000 board images, or 1,280,000 square-level predictions. Only 27 test squares were classified incorrectly, affecting 25 boards.
 
-Replace the `TODO` values with the final values from `output/reports/metrics.csv` or `output/reports/metrics.json`.
+### Final Metrics
 
 | Split | Square Accuracy | Occupied-Square Accuracy | Empty-Square Accuracy | Board Accuracy |
 | --- | --- | --- | --- | --- |
-| Train | TODO | TODO | TODO | TODO |
-| Validation | TODO | TODO | TODO | TODO |
-| Test | TODO | TODO | TODO | TODO |
+| Train | 99.9972% | 99.9824% | 100.0000% | 99.8514% |
+| Validation | 99.9961% | 99.9750% | 100.0000% | 99.7875% |
+| Test | 99.9979% | 99.9865% | 100.0000% | 99.8750% |
 
-### Training Curves Placeholder
+The most important result is not just the high square accuracy. Occupied-square accuracy is also extremely high, which means the model did not achieve its result by overpredicting the dominant `empty` class. Empty-square accuracy is perfect across train, validation, and test, while occupied-square accuracy remains above 99.97% on validation and 99.98% on test.
 
-Insert or reference the final plots after `just run` completes:
+Board accuracy is stricter because a single wrong square makes the whole board incorrect. Even under that metric, the model correctly reconstructs 99.875% of held-out test boards.
 
-- `output/figures/training_loss.png`
-- `output/figures/training_accuracy.png`
-- `output/figures/batch_loss.png`
-- `output/figures/batch_accuracy.png`
+### Training Curves
 
-Suggested interpretation to fill later:
+The final training curves are generated under `output/figures/`.
 
-- Did training loss decrease smoothly?
-- Did validation loss plateau or diverge?
-- Did batch-level accuracy stabilize after early noisy batches?
-- Did validation occupied-square accuracy improve at the same pace as square accuracy?
+![Training loss](output/figures/training_loss.png)
 
-### Confusion Matrix Placeholder
+![Training accuracy](output/figures/training_accuracy.png)
 
-Insert or reference:
+![Batch loss](output/figures/batch_loss.png)
 
-- `output/figures/confusion_matrix.png`
+![Batch accuracy](output/figures/batch_accuracy.png)
 
-Questions to answer after the final run:
+The epoch-level metrics show rapid convergence:
 
-- Which pieces are confused most often?
-- Are white and black versions of the same piece confused?
-- Are rare pieces such as kings and queens underrepresented in errors or simply low-support classes?
-- Is the model predicting `empty` too often for occupied squares?
+| Epoch | Train Loss | Train Square Accuracy | Validation Loss | Validation Square Accuracy | Validation Board Accuracy |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 1.5046 | 79.8064% | 0.7994 | 95.8746% | 9.9625% |
+| 2 | 0.5517 | 98.2312% | 0.3178 | 99.9023% | 95.0125% |
+| 3 | 0.2762 | 99.9243% | 0.2030 | 99.9961% | 99.7875% |
 
-### Prediction Confidence Placeholder
+The validation curve improves sharply from epoch 1 to epoch 2, then reaches near-perfect square recognition by epoch 3. The batch-level plots are useful because they show the noisy mini-batch trajectory rather than hiding everything behind three epoch averages. The running batch curves stabilize as training progresses, while validation epoch points confirm that the improvement transfers to held-out validation boards.
 
-Insert or reference:
+### Confusion Matrix
 
-- `output/figures/prediction_confidence.png`
+![Confusion matrix](output/figures/confusion_matrix.png)
 
-Questions to answer after the final run:
+The confusion matrix is almost perfectly diagonal. On the test split, the model made only 27 square-level mistakes out of 1,280,000 predictions. The remaining errors are concentrated in a few non-empty classes:
 
-- Are correct predictions generally high confidence?
-- Are errors also high confidence, suggesting calibration issues?
-- Is confidence lower on occupied squares than empty squares?
+| True Label | Predicted Label | Count |
+| --- | --- | --- |
+| `q` | `n` | 6 |
+| `q` | `k` | 5 |
+| `b` | `p` | 3 |
+| `n` | `empty` | 3 |
+| `p` | `empty` | 2 |
+| `n` | `k` | 2 |
 
-### Class Distribution Placeholder
+The black queen is the largest residual source of error, with 12 total mistakes. This makes sense because queen support is relatively low compared with empty squares and kings, and because rare classes have fewer examples to reinforce their visual decision boundary.
 
-Insert or reference:
+### Prediction Confidence
 
-- `output/figures/class_distribution.png`
+![Prediction confidence](output/figures/prediction_confidence.png)
 
-Use this plot to explain class imbalance, especially the dominance of `empty` squares compared with individual piece classes.
+The average confidence for correct test predictions is approximately 0.8706. The average confidence for incorrect test predictions is approximately 0.4776. This separation is useful: the model is generally less confident when it is wrong, which suggests that confidence could be used for manual review or downstream uncertainty handling.
+
+### Class Distribution
+
+![Class distribution](output/figures/class_distribution.png)
+
+The test split is strongly imbalanced. Empty squares account for 1,080,344 of 1,280,000 test squares, while individual piece classes are much smaller. Queens are among the smallest-support classes, with 8,785 white queens and 8,768 black queens. This imbalance explains why the project tracks occupied-square accuracy and per-class metrics instead of relying only on aggregate square accuracy.
+
+### Per-Class Behavior
+
+Per-class precision, recall, and F1 are also near perfect. The lowest test F1 scores are still above 99.92%:
+
+| Label | Precision | Recall | F1 | Support |
+| --- | --- | --- | --- | --- |
+| `q` | 99.9886% | 99.8631% | 99.9258% | 8,768 |
+| `n` | 99.9603% | 99.9716% | 99.9660% | 17,628 |
+| `k` | 99.9650% | 99.9950% | 99.9800% | 20,000 |
+| `p` | 99.9833% | 99.9833% | 99.9833% | 17,930 |
+
+The lowest-F1 class is black queen, matching the confusion-matrix observation. Importantly, these are tiny differences at very high accuracy, not broad class failure.
 
 ## Expected Challenges
 

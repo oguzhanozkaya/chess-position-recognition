@@ -458,25 +458,56 @@ def build_model_dataset(
     return dataset, metadata
 
 
+def _log_step(step: int, total_steps: int, message: str) -> None:
+    print(f"preprocess: [{step}/{total_steps}] {message}")
+
+
 def preprocess_raw_sources(paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PATHS) -> PreprocessResult:
     fip.utils.ensure_generated_directories(paths)
     raw_relative = paths.raw_data.relative_to(paths.root)
     processed_relative = paths.processed_data.relative_to(paths.root)
-    print(f"preprocess: raw_dir={raw_relative} processed_dir={processed_relative}")
+    total_steps = 9
+    print(
+        f"preprocess: start raw_dir={raw_relative} processed_dir={processed_relative} "
+        f"cutoff_minute={fip.utils.CUTOFF_MINUTE} window_minutes={fip.utils.WINDOW_MINUTES}"
+    )
+    _log_step(1, total_steps, "loading completed fixtures and chronological splits")
     fixtures = assign_chronological_splits(build_fixture_table(paths.raw_data))
     event_ids = set(fixtures["eventId"].astype(int))
-    print(f"preprocess: completed fixtures={len(fixtures)}")
+    split_counts = fixtures["split"].value_counts().to_dict()
+    print(f"preprocess: fixtures={len(fixtures):,} splits={split_counts}")
+
+    _log_step(2, total_steps, "loading and filtering play rows through the cutoff")
     plays = _prepare_plays(paths.raw_data, event_ids, fip.utils.CUTOFF_MINUTE)
+    print(f"preprocess: plays rows={len(plays):,}")
+
+    _log_step(3, total_steps, "loading and filtering key-event rows through the cutoff")
     key_events = _prepare_key_events(paths.raw_data, event_ids, fip.utils.CUTOFF_MINUTE)
+    print(f"preprocess: key_events rows={len(key_events):,}")
+
+    _log_step(4, total_steps, "loading and filtering commentary rows through the cutoff")
     commentary = _prepare_commentary(paths.raw_data, event_ids, fip.utils.CUTOFF_MINUTE)
+    print(f"preprocess: commentary rows={len(commentary):,}")
+
+    _log_step(5, total_steps, "loading safe lineup metadata")
     lineups = _prepare_lineups(paths.raw_data, event_ids)
+    print(f"preprocess: lineups rows={len(lineups):,}")
+
+    _log_step(6, total_steps, "building 5-minute text and numeric match windows")
     print(
         "preprocess: rows "
         f"plays={len(plays)} key_events={len(key_events)} commentary={len(commentary)} lineups={len(lineups)}"
     )
     dataset, metadata = build_model_dataset(fixtures, plays, key_events, commentary, lineups)
-    vocabulary = metadata.pop("vocabulary")
 
+    _log_step(7, total_steps, "summarizing built dataset, vocabulary, and token windows")
+    vocabulary = metadata.pop("vocabulary")
+    print(
+        f"preprocess: model rows={len(dataset):,} numeric_features={len(metadata['numeric_feature_columns']):,} "
+        f"vocabulary={len(vocabulary):,}"
+    )
+
+    _log_step(8, total_steps, "writing parquet and metadata artifacts")
     fixtures_path = paths.processed_data / "fixtures.parquet"
     dataset_path = paths.processed_data / "model_dataset.parquet"
     metadata_path = paths.processed_data / "feature_metadata.json"
@@ -486,6 +517,8 @@ def preprocess_raw_sources(paths: fip.utils.ProjectPaths = fip.utils.DEFAULT_PAT
     dataset.to_parquet(dataset_path, index=False)
     metadata_path.write_text(json.dumps(metadata, indent=2, default=str), encoding="utf-8")
     vocabulary_path.write_text(json.dumps(vocabulary, indent=2), encoding="utf-8")
+
+    _log_step(9, total_steps, "writing split summary")
     split_summary = (
         dataset.groupby("split")["target_label"].value_counts().unstack(fill_value=0).to_dict(orient="index")
     )

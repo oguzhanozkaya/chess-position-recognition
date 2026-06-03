@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -27,8 +28,8 @@ CPI_LAGS = (1, 2, 3, 6, 12)
 MARKET_LAGS = (0, 1, 2, 3, 6, 12)
 DELAYED_MACRO_LAGS = (2, 3, 6, 12)
 ROLLING_WINDOWS = (3, 6, 12)
-TEXT_LOOKBACK_MONTHS = 12
-MAX_VOCAB_SIZE = 5000
+TEXT_LOOKBACK_MONTHS = int(os.environ.get("TIF_TEXT_LOOKBACK_MONTHS", "12"))
+MAX_VOCAB_SIZE = int(os.environ.get("TIF_MAX_VOCAB_SIZE", "5000"))
 
 
 def parse_cbrt_consumer_prices_html(html: str) -> pd.DataFrame:

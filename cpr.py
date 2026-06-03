@@ -40,11 +40,11 @@ TRAIN_DIR = DATA_DIR / "train"
 TEST_DIR = DATA_DIR / "test"
 
 SEED = 67
-EPOCHS = 40
-PATIENCE = 6
-BATCH_SIZE = 128
-LEARNING_RATE = 0.0008
-WEIGHT_DECAY = 0.0001
+EPOCHS = 3
+PATIENCE = 1
+BATCH_SIZE = 192
+LEARNING_RATE = 0.00001
+WEIGHT_DECAY = 0.00001
 MIN_DELTA = 0.0002
 DEVICE = "cuda"
 VALIDATION_SIZE = 0.1
@@ -54,7 +54,7 @@ MIXED_PRECISION = True
 COMPILE_MODEL = False
 ROW_LIMIT = 0
 CHECKPOINT_INTERVAL_EPOCHS = 1
-DROPOUT = 0.15
+DROPOUT = 0.12
 LABEL_SMOOTHING = 0.01
 EMPTY_CLASS_WEIGHT = 0.45
 
@@ -295,6 +295,7 @@ def run_epoch(
     optimizer: torch.optim.Optimizer | None = None,
     scaler: torch.amp.GradScaler | None = None,
     use_amp: bool = False,
+    batch_history_rows: list[dict[str, float | int | str]] | None = None,
 ) -> tuple[float, float, float, float]:
     training = optimizer is not None
     model.train(training)
@@ -328,17 +329,41 @@ def run_epoch(
 
         batch_size = len(targets)
         square_correct, squares, occupied_correct, occupied, board_correct, images_seen = batch_metrics(logits, targets)
-        total_loss += float(loss.detach().cpu()) * batch_size
+        batch_loss = float(loss.detach().cpu())
+        batch_square_accuracy = square_correct / max(squares, 1)
+        batch_occupied_accuracy = occupied_correct / max(occupied, 1)
+        batch_board_accuracy = board_correct / max(images_seen, 1)
+        total_loss += batch_loss * batch_size
         total_images += images_seen
         total_square_correct += square_correct
         total_squares += squares
         total_occupied_correct += occupied_correct
         total_occupied += occupied
         total_board_correct += board_correct
+        if batch_history_rows is not None:
+            batch_history_rows.append(
+                {
+                    "epoch": epoch,
+                    "split": split,
+                    "batch": batch_index,
+                    "total_batches": len(loader),
+                    "global_batch": (epoch - 1) * len(loader) + batch_index,
+                    "image_count": images_seen,
+                    "square_count": squares,
+                    "loss": batch_loss,
+                    "square_accuracy": batch_square_accuracy,
+                    "occupied_square_accuracy": batch_occupied_accuracy,
+                    "board_accuracy": batch_board_accuracy,
+                    "running_loss": total_loss / max(total_images, 1),
+                    "running_square_accuracy": total_square_correct / max(total_squares, 1),
+                    "running_occupied_square_accuracy": total_occupied_correct / max(total_occupied, 1),
+                    "running_board_accuracy": total_board_correct / max(total_images, 1),
+                }
+            )
         print(
             f"epoch {epoch:03d} {split} batch {batch_index:04d}/{len(loader):04d}: "
-            f"batch_loss={float(loss.detach().cpu()):.5f} "
-            f"square_accuracy={square_correct / max(squares, 1):.4f} "
+            f"batch_loss={batch_loss:.5f} "
+            f"square_accuracy={batch_square_accuracy:.4f} "
             f"running_square_accuracy={total_square_correct / max(total_squares, 1):.4f}"
         )
     return (
@@ -420,29 +445,95 @@ def save_figure(path: Path) -> Path:
     return path
 
 
-def write_training_history(history: pd.DataFrame) -> None:
+def write_training_history(history: pd.DataFrame, batch_history: pd.DataFrame) -> None:
     history.to_csv(REPORTS_DIR / "training_history.csv", index=False)
     (REPORTS_DIR / "training_history.md").write_text(
         "# Training History\n\n" + history.to_markdown(index=False) + "\n", encoding="utf-8"
     )
+    batch_history.to_csv(REPORTS_DIR / "training_batch_history.csv", index=False)
+    (REPORTS_DIR / "training_batch_history.md").write_text(
+        "# Training Batch History\n\n" + batch_history.to_markdown(index=False) + "\n", encoding="utf-8"
+    )
+
+    train_batches = batch_history[batch_history["split"] == "train"]
+    validation_epoch_points = history.assign(
+        validation_global_batch=history["epoch"] * train_batches["total_batches"].max()
+    )
     plt.figure(figsize=(8, 4))
-    plt.plot(history["epoch"], history["train_loss"], label="train")
-    plt.plot(history["epoch"], history["validation_loss"], label="validation")
-    plt.xlabel("Epoch")
+    plt.plot(train_batches["global_batch"], train_batches["loss"], label="train batch", linewidth=1.0, alpha=0.75)
+    plt.plot(
+        train_batches["global_batch"],
+        train_batches["running_loss"],
+        label="train running",
+        linewidth=1.8,
+    )
+    plt.plot(
+        validation_epoch_points["validation_global_batch"],
+        validation_epoch_points["validation_loss"],
+        label="validation epoch",
+        marker="o",
+    )
+    plt.xlabel("Training Batch")
     plt.ylabel("Loss")
-    plt.title("Training and Validation Loss")
+    plt.title("Batch Training Loss")
     plt.legend()
     save_figure(FIGURES_DIR / "training_loss.png")
 
     plt.figure(figsize=(8, 4))
-    plt.plot(history["epoch"], history["train_square_accuracy"], label="train square")
-    plt.plot(history["epoch"], history["validation_square_accuracy"], label="validation square")
-    plt.plot(history["epoch"], history["validation_occupied_accuracy"], label="validation occupied")
-    plt.xlabel("Epoch")
+    plt.plot(
+        train_batches["global_batch"],
+        train_batches["square_accuracy"],
+        label="train batch square",
+        linewidth=1.0,
+        alpha=0.75,
+    )
+    plt.plot(
+        train_batches["global_batch"],
+        train_batches["running_square_accuracy"],
+        label="train running square",
+        linewidth=1.8,
+    )
+    plt.plot(
+        validation_epoch_points["validation_global_batch"],
+        validation_epoch_points["validation_square_accuracy"],
+        label="validation epoch square",
+        marker="o",
+    )
+    plt.plot(
+        validation_epoch_points["validation_global_batch"],
+        validation_epoch_points["validation_occupied_accuracy"],
+        label="validation epoch occupied",
+        marker="o",
+    )
+    plt.xlabel("Training Batch")
     plt.ylabel("Accuracy")
-    plt.title("Training and Validation Accuracy")
+    plt.title("Batch Training Accuracy")
     plt.legend()
     save_figure(FIGURES_DIR / "training_accuracy.png")
+
+    plt.figure(figsize=(8, 4))
+    for split, group in batch_history.groupby("split"):
+        plt.plot(group["global_batch"], group["loss"], label=f"{split} batch", linewidth=1.0, alpha=0.75)
+    plt.xlabel("Batch")
+    plt.ylabel("Loss")
+    plt.title("Every-Batch Loss by Split")
+    plt.legend()
+    save_figure(FIGURES_DIR / "batch_loss.png")
+
+    plt.figure(figsize=(8, 4))
+    for split, group in batch_history.groupby("split"):
+        plt.plot(
+            group["global_batch"],
+            group["square_accuracy"],
+            label=f"{split} batch square",
+            linewidth=1.0,
+            alpha=0.75,
+        )
+    plt.xlabel("Batch")
+    plt.ylabel("Accuracy")
+    plt.title("Every-Batch Square Accuracy by Split")
+    plt.legend()
+    save_figure(FIGURES_DIR / "batch_accuracy.png")
 
 
 def split_metrics(group: pd.DataFrame) -> dict[str, float]:
@@ -568,12 +659,31 @@ def train_model(config: Config) -> None:
     best_validation_square_accuracy = 0.0
     stale_epochs = 0
     history_rows = []
+    batch_history_rows = []
     for epoch in range(1, config.epochs + 1):
         train_loss, train_square_accuracy, train_occupied_accuracy, train_board_accuracy = run_epoch(
-            model, train_loader, criterion, device, epoch, "train", optimizer, scaler, use_amp
+            model,
+            train_loader,
+            criterion,
+            device,
+            epoch,
+            "train",
+            optimizer,
+            scaler,
+            use_amp,
+            batch_history_rows,
         )
         validation_loss, validation_square_accuracy, validation_occupied_accuracy, validation_board_accuracy = (
-            run_epoch(model, validation_loader, criterion, device, epoch, "validation", use_amp=use_amp)
+            run_epoch(
+                model,
+                validation_loader,
+                criterion,
+                device,
+                epoch,
+                "validation",
+                use_amp=use_amp,
+                batch_history_rows=batch_history_rows,
+            )
         )
         scheduler.step(validation_loss)
         history_rows.append(
@@ -604,7 +714,8 @@ def train_model(config: Config) -> None:
     if best_state is not None:
         model.load_state_dict(best_state)
     history = pd.DataFrame(history_rows)
-    write_training_history(history)
+    batch_history = pd.DataFrame(batch_history_rows)
+    write_training_history(history, batch_history)
     torch.save(
         {"model_state": model.state_dict(), "config": asdict(config), "labels": PIECES},
         MODELS_DIR / "scratch_board_cnn.pt",

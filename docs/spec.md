@@ -49,6 +49,8 @@ Each image represents one chessboard.
 | Metrics and reports | JSON, CSV, Markdown | `output/reports/`    |
 | Figures             | PNG                | `output/figures/`     |
 
+Training reports include epoch-level history and per-batch training/validation history. Training figures show batch-level loss and square accuracy, with validation epoch points overlaid on the main training curves.
+
 ## Usage
 
 Local run:

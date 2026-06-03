@@ -56,8 +56,8 @@ No `data/processed/` cache is used by the active pipeline. Images and filename l
 | --------------------- | -------------------------------------------------------------- | ------------------ |
 | `output/models/`      | Trained PyTorch checkpoints                                    | ignored            |
 | `output/predictions/` | Prediction CSV and Parquet outputs                             | ignored            |
-| `output/reports/`     | Metrics, class reports, training summaries, and history tables | ignored            |
-| `output/figures/`     | Training and evaluation plots                                  | ignored by default |
+| `output/reports/`     | Metrics, class reports, training summaries, epoch history, and batch history tables | ignored            |
+| `output/figures/`     | Batch-level training plots and evaluation plots                                  | ignored by default |
 | `presentation/build/`  | Intermediate TeX build files                                   | ignored            |
 | `presentation/*.pdf`   | Generated presentation PDFs                                    | ignored            |
 

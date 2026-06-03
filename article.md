@@ -76,6 +76,8 @@ Generated figures after `just run`:
 - `output/figures/prediction_confidence.png`
 - `output/figures/training_loss.png`
 - `output/figures/training_accuracy.png`
+- `output/figures/batch_loss.png`
+- `output/figures/batch_accuracy.png`
 
 ## Reproducibility
 

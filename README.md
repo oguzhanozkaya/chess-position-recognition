@@ -7,7 +7,7 @@
 </h3>
 
 <h3 align="center" style="margin: 1em; margin-bottom: 3em;">
-    <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Medium Article</a> - <a href="https://raw.githubusercontent.com/oguzhanozkaya/chess-position-recognition/refs/heads/main/presentation/chess-position-recognition.tex">Presentation</a>
+    <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Medium Article</a> - <a href="https://raw.githubusercontent.com/oguzhanozkaya/chess-position-recognition/refs/heads/main/presentation/chess-position-recognition.pdf">Presentation</a>
 </h3>
 
 This project predicts the contents of all 64 chessboard squares from a board image. The core challenge is building a high-accuracy computer vision classifier without fastai, pretrained models, or pretrained weights.

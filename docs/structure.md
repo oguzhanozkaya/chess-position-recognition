@@ -35,8 +35,8 @@ Generated data and model artifacts live outside source-controlled code.
 | -------------------- | ---------------------------------------------------------------------------------------------- |
 | Download             | Reuse local ESPN raw data or download it from Kaggle with configured credentials               |
 | Fixture preparation  | Build completed-match labels and chronological train/validation/test splits within each league |
-| Event preparation    | Filter plays, key events, and commentary to information available through minute 45            |
-| Feature construction | Build one first-half text field and one first-half numeric vector per match                    |
+| Event preparation    | Filter plays, key events, and commentary to information available through minute 60            |
+| Feature construction | Build one first-60-minute text field and one first-60-minute numeric vector per match          |
 | Training             | Train the raw-PyTorch TextCNN plus numeric MLP classifier                                      |
 | Evaluation           | Write predictions, metrics, per-class reports, error examples, and figures                     |
 

@@ -28,14 +28,14 @@ description: Conventions, rules and policies for project development.
 ### Modeling Rules
 
 - Final match outcome is the only target.
-- Forecast origin is minute 45.
+- Forecast origin is minute 60.
 - Random train/test splits are not allowed.
 - Splits must be chronological inside each league-season key.
-- Feature engineering must respect the minute-45 cutoff.
+- Feature engineering must respect the minute-60 cutoff.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded unless future work implements explicit lagging.
 - External pretrained language models, pretrained embeddings, and language model APIs are not allowed.
 - Text encoders must use tokenizers and embeddings trained on the project corpus from scratch.
-- The active model is one architecture only: first-half TextCNN plus first-half numeric MLP classifier.
+- The active model is one architecture only: first-60-minute TextCNN plus first-60-minute numeric MLP classifier.
 
 ## Workflow
 

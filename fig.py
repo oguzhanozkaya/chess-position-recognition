@@ -1,8 +1,8 @@
-"""Single-script ESPN Soccer first-half outcome prediction pipeline.
+"""Single-script ESPN Soccer first-60-minute outcome prediction pipeline.
 
 Run locally with `uv run python fig.py` or in Colab after installing the dependencies.
 The script downloads the Kaggle dataset when `data/raw/` does not already contain it,
-builds leakage-safe first-half features, trains one TextCNN + numeric MLP classifier,
+builds leakage-safe first-60-minute features, trains one TextCNN + numeric MLP classifier,
 and writes predictions, metrics, reports, and figures under `output/`.
 """
 
@@ -385,7 +385,7 @@ def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict
     event_ids = set(fixtures["eventId"].astype(int))
     print(f"preprocess: fixtures={len(fixtures):,} splits={fixtures['split'].value_counts().to_dict()}")
 
-    print("preprocess: loading first-half plays, key events, commentary, and safe lineups")
+    print("preprocess: loading first-60-minute plays, key events, commentary, and safe lineups")
     plays = prepare_plays(event_ids, config.cutoff_minute)
     key_events = prepare_key_events(event_ids, config.cutoff_minute)
     commentary = prepare_commentary(event_ids, config.cutoff_minute)

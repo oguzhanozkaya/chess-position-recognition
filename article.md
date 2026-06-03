@@ -2,13 +2,13 @@
 
 ## Abstract
 
-This project predicts the final outcome of a football match at minute 45 using a reproducible deep learning pipeline. The target is a three-class result: home win, draw, or away win. The model combines ESPN soccer commentary text with numerical event-stream features while enforcing a strict cutoff: no play, key event, commentary, or unsafe lineup information after minute 45 can enter the input.
+This project predicts the final outcome of a football match at minute 60 using a reproducible deep learning pipeline. The target is a three-class result: home win, draw, or away win. The model combines ESPN soccer commentary text with numerical event-stream features while enforcing a strict cutoff: no play, key event, commentary, or unsafe lineup information after minute 60 can enter the input.
 
 Final result placeholders in this article should be filled after the extended training run.
 
 ## Problem Definition
 
-Each row represents one completed match. The model observes information available through minute 45 and predicts the final result. This creates an in-play forecasting task rather than a pre-match prediction task.
+Each row represents one completed match. The model observes information available through minute 60 and predicts the final result. This creates an in-play forecasting task rather than a pre-match prediction task.
 
 ## Data
 
@@ -31,21 +31,21 @@ Feature availability rules are conservative:
 | Source     | Rule                                                                                         |
 | ---------- | -------------------------------------------------------------------------------------------- |
 | Fixtures   | Final scores are used only for labels.                                                       |
-| Plays      | Use first-half rows with parsed clock at or before minute 45.                                |
-| Key events | Use first-half rows with parsed clock at or before minute 45.                                |
-| Commentary | Use rows with parsed clock at or before minute 45; missing clocks are treated as early text. |
+| Plays      | Use rows with parsed clock at or before minute 60.                                           |
+| Key events | Use rows with parsed clock at or before minute 60.                                           |
+| Commentary | Use rows with parsed clock at or before minute 60; missing clocks are treated as early text. |
 | Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
 
-Each match has one first-half text field and one first-half numeric feature vector. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
+Each match has one first-60-minute text field and one first-60-minute numeric feature vector. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
 
 ## Model
 
-Only one architecture is trained: a first-half TextCNN plus numeric MLP classifier.
+Only one architecture is trained: a first-60-minute TextCNN plus numeric MLP classifier.
 
 For each match:
 
-- one TextCNN encodes all tokenized first-half commentary and event text;
-- one MLP encodes first-half event counts, score state, key-event counts, coordinates, and safe lineup features;
+- one TextCNN encodes all tokenized first-60-minute commentary and event text;
+- one MLP encodes first-60-minute event counts, score state, key-event counts, coordinates, and safe lineup features;
 - the two vectors are concatenated and passed to a classifier head.
 
 No GRU or time-window sequence is used.

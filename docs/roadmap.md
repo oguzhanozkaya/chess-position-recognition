@@ -6,7 +6,7 @@ description: Tasks, priorities, known bugs, and the project roadmap.
 
 ## Status Overview
 
-The repository is implemented as a single-script football in-play prediction pipeline. The current pipeline downloads or validates ESPN Soccer data, builds leakage-safe minute-45 match features, trains one first-half TextCNN plus numeric MLP classifier, and evaluates home/draw/away classification outputs.
+The repository is implemented as a single-script football in-play prediction pipeline. The current pipeline downloads or validates ESPN Soccer data, builds leakage-safe minute-60 match features, trains one first-60-minute TextCNN plus numeric MLP classifier, and evaluates home/draw/away classification outputs.
 
 | Area                             | Status      |
 | -------------------------------- | ----------- |
@@ -15,7 +15,7 @@ The repository is implemented as a single-script football in-play prediction pip
 | Command workflow                 | Implemented |
 | Kaggle raw-data download         | Implemented |
 | Raw data validation              | Implemented |
-| Minute-45 preprocessing          | Implemented |
+| Minute-60 preprocessing          | Implemented |
 | League-aware chronological split | Implemented |
 | Single TextCNN plus MLP model    | Implemented |
 | Evaluation reports               | Implemented |
@@ -36,7 +36,7 @@ The repository is implemented as a single-script football in-play prediction pip
 - `just smoke` runs a short CPU end-to-end pipeline through a direct `Config` override.
 - The script downloads the Kaggle ESPN Soccer dataset when `data/raw/` is missing required directories.
 - Preprocessing writes `model_dataset.parquet`, metadata, vocabulary, and split summaries.
-- Preprocessing slices plays, key events, and commentary through minute 45 only.
+- Preprocessing slices plays, key events, and commentary through minute 60 only.
 - Splits are assigned chronologically inside each league-season key.
 - The text vocabulary is built from the train split only.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded from first-model inputs.

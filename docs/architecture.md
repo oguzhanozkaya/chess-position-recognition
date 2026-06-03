@@ -8,24 +8,24 @@ description: System Architecture.
 
 - Reproducibility comes before convenience. Dataset download, preprocessing, training, and evaluation are command-driven by `fig.py`.
 - The target is final match outcome: home win, draw, or away win.
-- The forecast origin is minute 45.
-- No event, key event, commentary, or unsafe lineup information after minute 45 may enter model inputs.
+- The forecast origin is minute 60.
+- No event, key event, commentary, or unsafe lineup information after minute 60 may enter model inputs.
 - Deep learning is implemented with raw PyTorch.
 - Text embeddings are trained from scratch. No external pretrained language model, pretrained embedding, or language model API is used.
-- The model is intentionally simple: one TextCNN for first-half text, one MLP for first-half numeric features, and one fusion classifier.
+- The model is intentionally simple: one TextCNN for first-60-minute text, one MLP for first-60-minute numeric features, and one fusion classifier.
 
 ## Decisions
 
-| Area               | Decision                                          |
-| ------------------ | ------------------------------------------------- |
-| Script             | `fig.py`                                          |
-| Dataset            | Kaggle ESPN Soccer dataset under `data/raw/`      |
-| Forecast origin    | Minute 45                                         |
-| Target             | Final result: `home`, `draw`, `away`              |
-| Modeling framework | Raw PyTorch                                       |
-| Architecture       | First-half TextCNN plus numeric MLP classifier    |
-| Validation         | Chronological split inside each league-season key |
-| Command interface  | `just run` wrapping `uv run python fig.py`        |
+| Area               | Decision                                            |
+| ------------------ | --------------------------------------------------- |
+| Script             | `fig.py`                                            |
+| Dataset            | Kaggle ESPN Soccer dataset under `data/raw/`        |
+| Forecast origin    | Minute 60                                           |
+| Target             | Final result: `home`, `draw`, `away`                |
+| Modeling framework | Raw PyTorch                                         |
+| Architecture       | First-60-minute TextCNN plus numeric MLP classifier |
+| Validation         | Chronological split inside each league-season key   |
+| Command interface  | `just run` wrapping `uv run python fig.py`          |
 
 ## Data Flow
 
@@ -34,7 +34,7 @@ flowchart TD
     A[Kaggle ESPN Soccer] --> B[data/raw]
     B --> C[fig.py]
     C --> D[Build league-aware splits]
-    D --> E[Filter first-half rows <= 45]
+    D --> E[Filter rows <= 60]
     E --> F[data/processed/model_dataset.parquet]
     F --> G[Train TextCNN + Numeric MLP]
     G --> H[output/models/textcnn_mlp.pt]
@@ -47,7 +47,7 @@ flowchart TD
 The pipeline has four responsibilities:
 
 1. Download or reuse the local Kaggle raw dataset.
-2. Convert first-half event streams into one row per match.
+2. Convert first-60-minute event streams into one row per match.
 3. Train one hybrid text and numeric classifier.
 4. Generate prediction, metric, report, and figure artifacts.
 
@@ -69,9 +69,9 @@ Splits are assigned inside each `seasonType-leagueId-year` group. This prevents 
 | Source       | Rule                                                                                                                  |
 | ------------ | --------------------------------------------------------------------------------------------------------------------- |
 | Fixtures     | Final scores are used only to build labels, never as inputs.                                                          |
-| Plays        | Include first-half play rows with parsed clock at or before minute 45.                                                |
-| Key events   | Include first-half key-event rows with parsed clock at or before minute 45.                                           |
-| Commentary   | Include commentary rows with parsed clock at or before minute 45; missing clocks are treated as pre-match/early text. |
+| Plays        | Include play rows with parsed clock at or before minute 60.                                                           |
+| Key events   | Include key-event rows with parsed clock at or before minute 60.                                                      |
+| Commentary   | Include commentary rows with parsed clock at or before minute 60; missing clocks are treated as pre-match/early text. |
 | Lineups      | Use safe formation and starter metadata; do not use winner fields or post-cutoff substitutions.                       |
 | Team stats   | Excluded because the table represents full-match statistics.                                                          |
 | Player stats | Excluded until explicit lagging is implemented.                                                                       |
@@ -81,9 +81,9 @@ Splits are assigned inside each `seasonType-leagueId-year` group. This prevents 
 
 ```mermaid
 flowchart TD
-    A[First-half token IDs] --> B[Embedding From Scratch]
+    A[First-60-minute token IDs] --> B[Embedding From Scratch]
     B --> C[TextCNN]
-    D[First-half numeric vector] --> E[Numeric MLP]
+    D[First-60-minute numeric vector] --> E[Numeric MLP]
     C --> F[Concatenate]
     E --> F
     F --> G[Fusion MLP]
@@ -95,7 +95,7 @@ The model is `FirstHalfClassifier` in `fig.py`.
 For each match:
 
 - the text branch embeds token IDs and applies several 1D convolution kernels;
-- the numeric branch projects first-half event, score-state, coordinate, and safe lineup features;
+- the numeric branch projects first-60-minute event, score-state, coordinate, and safe lineup features;
 - both representations are concatenated and passed through a final classifier.
 
 There is no GRU and no time-window sequence.

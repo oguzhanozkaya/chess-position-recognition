@@ -2,17 +2,17 @@
 
 ## Project Scope
 
-This project predicts the final result of a football match from in-play information available at minute 45. The target is a three-class outcome: home win, draw, or away win.
+This project predicts the final result of a football match from in-play information available through minute 60. The target is a three-class outcome: home win, draw, or away win.
 
-The pipeline is a single root script, `fig.py`. It downloads the Kaggle ESPN Soccer dataset when local raw files are missing, builds leakage-safe first-half features, trains one raw-PyTorch classifier, and writes evaluation artifacts.
+The pipeline is a single root script, `fig.py`. It downloads the Kaggle ESPN Soccer dataset when local raw files are missing, builds leakage-safe first-60-minute features, trains one raw-PyTorch classifier, and writes evaluation artifacts.
 
 ## Forecast Target
 
 | Field          | Definition                                                                                |
 | -------------- | ----------------------------------------------------------------------------------------- |
 | Target         | Final match outcome: `home`, `draw`, or `away`                                            |
-| Forecast time  | Minute 45                                                                                 |
-| Forecast rule  | Use only plays, key events, commentary, and safe lineup data available through minute 45. |
+| Forecast time  | Minute 60                                                                                 |
+| Forecast rule  | Use only plays, key events, commentary, and safe lineup data available through minute 60. |
 | Split strategy | Chronological train, validation, and test periods within each league-season key           |
 | Main metric    | Accuracy and macro F1                                                                     |
 
@@ -34,15 +34,15 @@ The source dataset is [ESPN Soccer Data](https://www.kaggle.com/datasets/excel4s
 
 ## Data Contract
 
-Each observation in `data/processed/model_dataset.parquet` represents one completed match sampled at minute 45.
+Each observation in `data/processed/model_dataset.parquet` represents one completed match sampled at minute 60.
 
 | Field Group  | Required Content                                                                      |
 | ------------ | ------------------------------------------------------------------------------------- |
 | Time keys    | Match date, split, league, league-season key, event id                                |
 | Target       | Final result label and numeric class id                                               |
-| Text         | One tokenized first-half text sequence per match                                      |
-| Numeric      | One first-half numeric feature vector per match                                       |
-| Leakage rule | No play, key event, commentary, or unsafe lineup data after minute 45 may enter input |
+| Text         | One tokenized first-60-minute text sequence per match                                 |
+| Numeric      | One first-60-minute numeric feature vector per match                                  |
+| Leakage rule | No play, key event, commentary, or unsafe lineup data after minute 60 may enter input |
 
 ## Outputs
 
@@ -104,8 +104,8 @@ Pipeline and model settings are Python constants near the top of `fig.py`. Edit 
 | `WEIGHT_DECAY`             | `0.0001`    | AdamW weight decay.                              |
 | `EARLY_STOPPING_MIN_DELTA` | `0.001`     | Minimum validation-loss improvement.             |
 | `DEVICE`                   | `cuda`      | Training device: `cuda`, `cpu`, or `auto`.       |
-| `CUTOFF_MINUTE`            | `45`        | Last match minute allowed in model inputs.       |
-| `MAX_TOKENS`               | `256`       | Maximum first-half text tokens per match.        |
+| `CUTOFF_MINUTE`            | `60`        | Last match minute allowed in model inputs.       |
+| `MAX_TOKENS`               | `256`       | Maximum first-60-minute text tokens per match.   |
 | `MAX_VOCAB_SIZE`           | `6000`      | Maximum train-split vocabulary size.             |
 | `TEXT_EMBEDDING_DIM`       | `64`        | Text embedding dimension.                        |
 | `TEXT_CHANNEL_COUNT`       | `48`        | TextCNN channels per kernel size.                |
@@ -121,4 +121,4 @@ Pipeline and model settings are Python constants near the top of `fig.py`. Edit 
 
 ## Success Criteria
 
-The project is complete when `just run` can download or reuse local ESPN data, build leakage-safe first-half match features, train the single TextCNN plus numeric MLP classifier, evaluate chronological league-aware splits, and generate report-ready outputs.
+The project is complete when `just run` can download or reuse local ESPN data, build leakage-safe first-60-minute match features, train the single TextCNN plus numeric MLP classifier, evaluate chronological league-aware splits, and generate report-ready outputs.

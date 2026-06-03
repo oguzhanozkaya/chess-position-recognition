@@ -1,58 +1,55 @@
-# Football In-Play Prediction with Numeric Event Windows
+# Yelp Review Sentiment with Scratch PyTorch TextCNN
 
 ## Abstract
 
-This project predicts the final outcome of a football match at minute 60 using a reproducible deep learning pipeline. The target is a three-class result: home win, draw, or away win. The model converts ESPN soccer event streams into 5-minute numeric windows while enforcing a strict cutoff: no play, key event, commentary, or unsafe lineup information after minute 60 can enter the input.
+This project predicts Yelp review polarity with a reproducible deep learning pipeline. The target is binary sentiment: negative or positive. The model reads raw review text, builds a vocabulary from the active training split, and trains a scratch PyTorch TextCNN without fastai, pretrained embeddings, pretrained language models, transformer libraries, or language model APIs.
 
-Final result placeholders in this article should be filled after the extended training run.
+Final result placeholders in this article should be filled after the extended RTX 4080 training run.
 
 ## Problem Definition
 
-Each row represents one completed match. The model observes information available through minute 60 and predicts the final result. This creates an in-play forecasting task rather than a pre-match prediction task.
+Each row represents one Yelp review. The model receives the review text and predicts whether the original polarity label is negative or positive.
+
+| Raw Label | Class      |
+| --------- | ---------- |
+| `1`       | `negative` |
+| `2`       | `positive` |
 
 ## Data
 
-Raw data comes from the ESPN Soccer dataset. `fig.py` downloads it from Kaggle when the expected `data/raw/` directories are missing:
+Raw data comes from the [Yelp Review Dataset](https://www.kaggle.com/datasets/ilhamfp31/yelp-review-dataset). The files are placed locally before running the pipeline:
 
-- `base_data/fixtures.csv` for dates, teams, final scores, status, and labels.
-- `plays_data/*.csv` for play-by-play events, clocks, text, scoring flags, teams, and coordinates.
-- `keyEvents_data/*.csv` for important match events and event text.
-- `commentary_data/*.csv` for minute-by-minute commentary.
-- `lineup_data/*.csv` for safe formation and starter metadata.
+- `data/train.csv` for training and validation.
+- `data/test.csv` for final held-out evaluation.
 
-Full-match team statistics, scrape-time standings, and season player aggregates are excluded from the first model to avoid leakage.
+Both files are headerless CSV files with label in the first column and review text in the second column. The pipeline reads these files on every run. No processed dataset cache is written.
 
-## Feature Engineering
+## Text Processing
 
-The processed dataset is written by `python fig.py` to `data/processed/model_dataset.parquet`.
+The pipeline builds the text representation in memory:
 
-Feature availability rules are conservative:
-
-| Source     | Rule                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| Fixtures   | Final scores are used only for labels.                                                       |
-| Plays      | Use rows with parsed clock at or before minute 60.                                           |
-| Key events | Use rows with parsed clock at or before minute 60.                                           |
-| Commentary | Use rows with parsed clock at or before minute 60; missing clocks are treated as early text. |
-| Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
-
-Each match is represented as 12 five-minute windows from `0-5` through `55-60`. Windows contain current event counts, cumulative match state, score-state flags, score and event differentials, coordinate summaries, event-type counts, commentary counts, safe lineup features, and leakage-safe pre-match team-strength features. Text is not used as an active model input.
+- lowercase regex tokenization extracts words, simple contractions, digits, and punctuation;
+- the vocabulary is built only from the training split;
+- rare and unseen tokens map to `<unk>`;
+- reviews are padded or truncated to a fixed token length;
+- training-time word dropout randomly replaces non-padding tokens with `<unk>` as augmentation.
 
 ## Model
 
-Only one architecture is trained: a numeric Temporal CNN classifier.
+Only one active architecture is trained: a scratch TextCNN classifier implemented directly with PyTorch.
 
-For each match:
+For each review:
 
-- a linear layer projects every numeric window into a learned representation;
-- residual 1D convolution blocks model temporal patterns across the 12 windows;
-- max pooling, mean pooling, and the last window state are concatenated for classification.
+- token ids are mapped to learned word embeddings;
+- parallel 1D convolution filters with multiple widths detect local sentiment phrases;
+- global max pooling keeps the strongest activation from each filter bank;
+- a dropout-regularized MLP predicts negative/positive logits.
 
-No GRU, LSTM, TextCNN, or text embedding branch is used.
+This architecture is appropriate for the course scope because it exercises natural language processing, convolutional neural networks, data preprocessing, augmentation, optimization, and end-to-end PyTorch implementation without relying on fastai or pretrained models.
 
 ## Evaluation
 
-The split is chronological within each league-season key. Every league with enough matches contributes early matches to train, later matches to validation, and latest matches to test. The test period is not used for fitting scalers, model parameters, or early stopping.
+The training CSV is split into stratified train and validation partitions. The test CSV remains isolated until final evaluation.
 
 Metrics:
 
@@ -76,7 +73,6 @@ Generated figures after `just run`:
 - `output/figures/confusion_matrix.png`
 - `output/figures/class_distribution.png`
 - `output/figures/prediction_confidence.png`
-- `output/figures/metric_comparison.png`
 - `output/figures/training_loss.png`
 
 ## Reproducibility
@@ -96,4 +92,4 @@ just smoke
 
 ## Limitations
 
-The current first-pass features use conservative event counts and coarse coordinate summaries. ESPN event semantics can vary across competitions, and clocks are normalized conservatively. Future work should add lagged pre-match team strength features, richer event taxonomy mappings, and calibration analysis after the base model is stable.
+The model uses a word-level vocabulary, so rare spelling variants and unusual tokens can map to `<unk>`. Long reviews are truncated to the configured maximum sequence length. Final report quality depends on the extended local GPU training run and may improve with careful tuning of vocabulary size, sequence length, dropout, and convolution width.

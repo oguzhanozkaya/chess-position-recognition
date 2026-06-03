@@ -6,112 +6,103 @@ description: System Architecture.
 
 ## Design Principles
 
-- Reproducibility comes before convenience. Dataset download, preprocessing, training, and evaluation are command-driven by `fig.py`.
-- The target is final match outcome: home win, draw, or away win.
-- The forecast origin is minute 60.
-- No event, key event, commentary, or unsafe lineup information after minute 60 may enter model inputs.
+- Reproducibility comes before convenience. Training and evaluation are command-driven by `yrs.py`.
+- The target is binary Yelp review sentiment.
+- Raw CSV files are read every run; no processed dataset cache is written.
+- The final test CSV is isolated from vocabulary fitting, model training, and early stopping.
 - Deep learning is implemented with raw PyTorch.
-- The active model uses numeric 5-minute windows only; text is not used as a model input.
-- The model is intentionally simple: one Temporal CNN over leakage-safe numeric windows and one classifier head.
+- fastai, pretrained embeddings, pretrained language models, transformer libraries, and language model APIs are not used.
+- The active architecture is intentionally focused: one TextCNN over learned word embeddings and one classifier head.
 
 ## Decisions
 
 | Area               | Decision                                            |
 | ------------------ | --------------------------------------------------- |
-| Script             | `fig.py`                                            |
-| Dataset            | Kaggle ESPN Soccer dataset under `data/raw/`        |
-| Forecast origin    | Minute 60                                           |
-| Target             | Final result: `home`, `draw`, `away`                |
+| Script             | `yrs.py`                                            |
+| Dataset            | Kaggle Yelp Review Dataset under `data/`            |
+| Target             | Review polarity: `negative` or `positive`           |
 | Modeling framework | Raw PyTorch                                         |
-| Architecture       | Numeric Temporal CNN over 5-minute windows          |
-| Validation         | Chronological split inside each league-season key   |
-| Command interface  | `just run` wrapping `uv run python fig.py`          |
+| Architecture       | Scratch TextCNN over learned word embeddings        |
+| Validation         | Stratified split from `data/train.csv`              |
+| Command interface  | `just run` wrapping `uv run python yrs.py`          |
 
 ## Data Flow
 
 ```mermaid
 flowchart TD
-    A[Kaggle ESPN Soccer] --> B[data/raw]
-    B --> C[fig.py]
-    C --> D[Build league-aware splits]
-    D --> E[Filter rows <= 60]
-    E --> F[data/processed/model_dataset.parquet]
-    F --> G[Train Numeric Temporal CNN]
-    G --> H[output/models/numeric_tcn.pt]
+    A[data/train.csv] --> B[yrs.py]
+    C[data/test.csv] --> B
+    B --> D[Stratified train/validation split]
+    D --> E[Build vocabulary from train only]
+    E --> F[Encode padded token sequences]
+    F --> G[Train scratch TextCNN]
+    G --> H[output/models/scratch_text_cnn.pt]
     G --> I[output/predictions]
-    I --> J[Evaluate]
+    I --> J[Evaluate validation and test]
     J --> K[output/reports]
     J --> L[output/figures]
 ```
 
 The pipeline has four responsibilities:
 
-1. Download or reuse the local Kaggle raw dataset.
-2. Convert first-60-minute event streams into 5-minute numeric windows per match.
-3. Train one numeric temporal classifier.
+1. Read local Yelp CSV files.
+2. Build an in-memory NLP representation from the active training split.
+3. Train one scratch neural classifier.
 4. Generate prediction, metric, report, and figure artifacts.
 
 ## Split Strategy
 
 ```mermaid
 flowchart TD
-    A[Completed fixtures] --> B[Group by league-season key]
-    B --> C[Sort each group by date]
-    C --> D[Oldest 70 percent: train]
-    C --> E[Next 15 percent: validation]
-    C --> F[Latest 15 percent: test]
+    A[data/train.csv] --> B[Stratified split]
+    B --> C[Train]
+    B --> D[Validation]
+    E[data/test.csv] --> F[Final test]
 ```
 
-Splits are assigned inside each `seasonType-leagueId-year` group. This prevents a global date sort from putting whole competitions mostly into one split. Very small league groups fall back to train-only or one validation and one test match when possible.
+The validation split is stratified so negative and positive examples remain balanced. `data/test.csv` is loaded only for final evaluation.
 
-## Feature Rules
+## Text Processing Rules
 
-| Source       | Rule                                                                                                                  |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Fixtures     | Final scores are used only to build labels, never as inputs.                                                          |
-| Plays        | Include play rows with parsed clock at or before minute 60.                                                           |
-| Key events   | Include key-event rows with parsed clock at or before minute 60.                                                      |
-| Commentary   | Include commentary rows with parsed clock at or before minute 60; missing clocks are treated as pre-match/early text. |
-| Lineups      | Use safe formation and starter metadata; do not use winner fields or post-cutoff substitutions.                       |
-| Team stats   | Excluded because the table represents full-match statistics.                                                          |
-| Player stats | Excluded until explicit lagging is implemented.                                                                       |
-| Standings    | Excluded until scrape-time snapshots are converted into safe pre-match features.                                      |
-
-Feature construction aggregates play, key-event, commentary, coordinate, and lineup inputs with `eventId` groupby and pivot operations inside each 5-minute window. Each window contains current-window counts, cumulative match state, explicit score-state flags, score and event differentials, coordinate summaries, safe lineup features, and leakage-safe pre-match team strength features.
-
-Pre-match team strength is computed before each fixture date only. It includes rolling recent form, season-to-date rates, and an Elo-like rating updated after prior completed matches. Matches on the same timestamp are feature-extracted before any of them update team state, avoiding same-date leakage.
+| Step             | Rule                                                                           |
+| ---------------- | ------------------------------------------------------------------------------ |
+| Label mapping    | `1` to `negative`, `2` to `positive`                                           |
+| Tokenization     | Lowercase regex tokenization for words, simple contractions, digits, punctuation |
+| Vocabulary       | Built from the train split only                                                |
+| Unknown tokens   | Out-of-vocabulary tokens map to `<unk>`                                        |
+| Padding          | Sequences are padded or truncated to `MAX_SEQUENCE_LENGTH`                     |
+| Augmentation     | Training-time word dropout replaces random non-padding tokens with `<unk>`     |
 
 ## Model
 
 ```mermaid
 flowchart TD
-    A[12 numeric windows] --> B[Per-window Projection]
-    B --> C[Residual Temporal Conv Blocks]
-    C --> D[Max Pool + Mean Pool + Last State]
+    A[Token ids] --> B[Learned embeddings]
+    B --> C[Parallel 1D convolutions]
+    C --> D[Global max pooling]
     D --> E[Classifier MLP]
-    E --> F[Home/Draw/Away Logits]
+    E --> F[Negative/Positive logits]
 ```
 
-The model is `NumericWindowTCN` in `fig.py`.
+The model is `TextCNN` in `yrs.py`.
 
-For each match:
+For each review:
 
-- every 5-minute window is projected into a learned numeric representation;
-- residual 1D convolution blocks with GroupNorm model short temporal patterns across the 12 windows;
-- max pooling, mean pooling, and the final window state are concatenated for classification.
+- token ids are mapped to learned embeddings;
+- parallel convolution filters with widths 2, 3, 4, and 5 detect sentiment phrases;
+- global max pooling keeps the strongest activation per filter;
+- a dropout-regularized MLP predicts binary sentiment logits.
 
-There is no GRU, LSTM, TextCNN, or text embedding branch.
-
-`MODEL_TYPE="mlp"` enables a flattened numeric MLP diagnostic model. It is useful for checking whether temporal convolution is providing value over a simpler tabular sequence baseline; the default active model is `MODEL_TYPE="tcn"`.
+The architecture is scratch-trained. There is no transfer from external model weights.
 
 ## Evaluation
 
 Evaluation reports classification quality for train, validation, and test splits.
 
-| Metric                        | Purpose                                            |
-| ----------------------------- | -------------------------------------------------- |
-| Accuracy                      | Overall correct final-result predictions           |
-| Macro F1                      | Class-balanced quality across home, draw, and away |
-| Log loss                      | Probability quality and confidence penalty         |
-| Per-class precision/recall/F1 | Class-specific behavior                            |
-| Confusion matrix              | Error structure across outcome classes             |
+| Metric                        | Purpose                                      |
+| ----------------------------- | -------------------------------------------- |
+| Accuracy                      | Overall correct sentiment predictions        |
+| Macro F1                      | Class-balanced quality                       |
+| Log loss                      | Probability quality and confidence penalty   |
+| Per-class precision/recall/F1 | Class-specific behavior                      |
+| Confusion matrix              | Error structure across sentiment classes     |

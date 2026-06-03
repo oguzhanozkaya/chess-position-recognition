@@ -7,23 +7,23 @@ hide:
 
 <p align="center"> <img src="_assets/logo.svg" alt="Logo" width="120em" /> </p>
 
-<h1 align="center" style="margin: 0;"> Football In-Play Prediction </h1>
+<h1 align="center" style="margin: 0;"> Yelp Review Sentiment </h1>
 
 <h3 align="center" style="margin: 0.6em;">
-    Predicting football match outcomes at minute 60 using deep learning.
+    Classifying Yelp review polarity with scratch PyTorch NLP models.
 </h3>
 
 <h3 align="center" style="margin: 1em; margin-bottom: 3em;">
-    <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/football-inplay-prediction/">Presentation</a>
+    <a href="https://oguzhanozkaya.github.io/yelp-review-sentiment/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/yelp-review-sentiment/">Presentation</a>
 </h3>
 
 <div class="grid cards" markdown>
 
 -   ## Project
 
-    This project predicts whether the final result will be a home win, draw, or away win using only match information available through minute 60. The core challenge is time alignment: commentary, plays, key events, and lineup-derived inputs must be sliced so later match information cannot leak into the in-play prediction.
+    This project predicts whether a Yelp review is negative or positive from review text. The implementation uses raw PyTorch only: tokenization, vocabulary construction, batching, the neural architecture, optimization, evaluation, and artifact generation are implemented in `yrs.py` without fastai, pretrained embeddings, pretrained language models, or transformer libraries.
 
-    **Dataset**: [ESPN Soccer Data](https://www.kaggle.com/datasets/excel4soccer/espn-soccer-data)
+    **Dataset**: [Yelp Review Dataset](https://www.kaggle.com/datasets/ilhamfp31/yelp-review-dataset)
 
     **Student**: Oğuzhan Özkaya
 
@@ -37,10 +37,10 @@ hide:
 
 -   ## Objective
 
-    Build a reproducible command-driven pipeline that downloads or validates ESPN Soccer raw data, constructs leakage-safe first-60-minute match features, trains one hybrid neural classifier, evaluates league-aware chronological splits, and generates report-ready outputs.
+    Build a reproducible command-driven sentiment classifier that reads the local Yelp CSV files on each run, trains a high-capacity scratch TextCNN, evaluates validation and test performance, and generates report-ready outputs.
 
 -   ## Approach
 
-    Convert first-60-minute match events into 5-minute numeric windows and train one raw-PyTorch Temporal CNN. The model learns temporal momentum from current-window counts, cumulative match state, score differentials, event-type counts, coordinates, and safe lineup features.
+    Convert review text into token ids with an in-memory training vocabulary, apply word dropout as text augmentation, and train a Kim-style convolutional neural network over learned word embeddings. The model uses multiple convolution widths to capture short sentiment phrases and pools the strongest signals for binary classification.
 
 </div>

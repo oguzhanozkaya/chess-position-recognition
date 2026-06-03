@@ -18,17 +18,8 @@ __pycache__/
 node_modules/
 .site/
 
-# Reproducible generated data. Keep only directory placeholders.
+# Local dataset files.
 data/*
-!data/raw/
-!data/interim/
-!data/processed/
-data/raw/*
-data/interim/*
-data/processed/*
-!data/raw/.gitkeep
-!data/interim/.gitkeep
-!data/processed/.gitkeep
 
 # Generated model outputs and reports. Keep only directory placeholders.
 output/*

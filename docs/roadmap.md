@@ -19,14 +19,6 @@ The repository is implemented as a single-script chess position recognition pipe
 | Evaluation reports           | Implemented |
 | Article draft                | Implemented |
 
-## Active Tasks
-
-| Priority | Task                             | Exit Criteria                                                       |
-| -------- | -------------------------------- | ------------------------------------------------------------------- |
-| High     | Run extended GPU training        | `just run` completes on the RTX 4080 target machine                 |
-| High     | Regenerate reports and figures   | `output/reports/` and `output/figures/` contain final run artifacts |
-| High     | Fill article result placeholders | Final square accuracy, board accuracy, figures, and interpretation are added to `article.md` |
-
 ## Delivered Capabilities
 
 - `cpr.py` runs the complete pipeline from local image loading through evaluation.

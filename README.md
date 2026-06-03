@@ -1,4 +1,4 @@
-<p align="center"> <img src="_assets/logo.svg" alt="Logo" width="120em" /> </p>
+<p align="center"> <img src="docs/_assets/logo.svg" alt="Logo" width="120em" /> </p>
 
 <h1 align="center" style="margin: 0;"> Football In-Play Prediction </h1>
 

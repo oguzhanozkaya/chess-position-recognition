@@ -16,18 +16,13 @@ smoke:
 
 [group('qual')]
 fix:
-  bunx prettier --log-level=warn --write .
   uv run ruff format .
   uv run ruff check . --fix
 
 [group('qual')]
 check:
-  bunx prettier --log-level warn --check .
   uv run ruff format . --check
   uv run ruff check .
-
-[group('qual')]
-ci: check
 
 [group('clean')]
 clean:

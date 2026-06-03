@@ -1,8 +1,8 @@
-# Football In-Play Prediction with First-Half Text and Events
+# Football In-Play Prediction with Numeric Event Windows
 
 ## Abstract
 
-This project predicts the final outcome of a football match at minute 60 using a reproducible deep learning pipeline. The target is a three-class result: home win, draw, or away win. The model combines ESPN soccer commentary text with numerical event-stream features while enforcing a strict cutoff: no play, key event, commentary, or unsafe lineup information after minute 60 can enter the input.
+This project predicts the final outcome of a football match at minute 60 using a reproducible deep learning pipeline. The target is a three-class result: home win, draw, or away win. The model converts ESPN soccer event streams into 5-minute numeric windows while enforcing a strict cutoff: no play, key event, commentary, or unsafe lineup information after minute 60 can enter the input.
 
 Final result placeholders in this article should be filled after the extended training run.
 
@@ -36,23 +36,23 @@ Feature availability rules are conservative:
 | Commentary | Use rows with parsed clock at or before minute 60; missing clocks are treated as early text. |
 | Lineups    | Use formation and starter metadata; exclude winner fields and post-cutoff substitutions.     |
 
-Each match has one first-60-minute text field and one first-60-minute numeric feature vector. The text tokenizer is trained from scratch on the training split only. No pretrained language model, pretrained embedding, or external model API is used.
+Each match is represented as 12 five-minute windows from `0-5` through `55-60`. Windows contain current event counts, cumulative match state, score and event differentials, coordinate summaries, event-type counts, commentary counts, and safe lineup features. Text is not used as an active model input.
 
 ## Model
 
-Only one architecture is trained: a first-60-minute TextCNN plus numeric MLP classifier.
+Only one architecture is trained: a numeric Temporal CNN classifier.
 
 For each match:
 
-- one TextCNN encodes all tokenized first-60-minute commentary and event text;
-- one MLP encodes first-60-minute event counts, score state, key-event counts, coordinates, and safe lineup features;
-- the two vectors are concatenated and passed to a classifier head.
+- a linear layer projects every numeric window into a learned representation;
+- residual 1D convolution blocks model temporal patterns across the 12 windows;
+- max pooling, mean pooling, and the last window state are concatenated for classification.
 
-No GRU or time-window sequence is used.
+No GRU, LSTM, TextCNN, or text embedding branch is used.
 
 ## Evaluation
 
-The split is chronological within each league-season key. Every league with enough matches contributes early matches to train, later matches to validation, and latest matches to test. The test period is not used for fitting vocabulary, scalers, model parameters, or early stopping.
+The split is chronological within each league-season key. Every league with enough matches contributes early matches to train, later matches to validation, and latest matches to test. The test period is not used for fitting scalers, model parameters, or early stopping.
 
 Metrics:
 

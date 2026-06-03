@@ -41,6 +41,6 @@ hide:
 
 -   ## Approach
 
-    Combine text commentary and numerical event features inside one raw-PyTorch architecture: a TextCNN encodes the first-60-minute text, an MLP encodes first-60-minute numeric features, and a fusion classifier predicts home/draw/away.
+    Convert first-60-minute match events into 5-minute numeric windows and train one raw-PyTorch Temporal CNN. The model learns temporal momentum from current-window counts, cumulative match state, score differentials, event-type counts, coordinates, and safe lineup features.
 
 </div>

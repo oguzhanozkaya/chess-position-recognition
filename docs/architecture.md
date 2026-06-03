@@ -11,8 +11,8 @@ description: System Architecture.
 - The forecast origin is minute 60.
 - No event, key event, commentary, or unsafe lineup information after minute 60 may enter model inputs.
 - Deep learning is implemented with raw PyTorch.
-- Text embeddings are trained from scratch. No external pretrained language model, pretrained embedding, or language model API is used.
-- The model is intentionally simple: one TextCNN for first-60-minute text, one MLP for first-60-minute numeric features, and one fusion classifier.
+- The active model uses numeric 5-minute windows only; text is not used as a model input.
+- The model is intentionally simple: one Temporal CNN over leakage-safe numeric windows and one classifier head.
 
 ## Decisions
 
@@ -23,7 +23,7 @@ description: System Architecture.
 | Forecast origin    | Minute 60                                           |
 | Target             | Final result: `home`, `draw`, `away`                |
 | Modeling framework | Raw PyTorch                                         |
-| Architecture       | First-60-minute TextCNN plus numeric MLP classifier |
+| Architecture       | Numeric Temporal CNN over 5-minute windows          |
 | Validation         | Chronological split inside each league-season key   |
 | Command interface  | `just run` wrapping `uv run python fig.py`          |
 
@@ -36,8 +36,8 @@ flowchart TD
     C --> D[Build league-aware splits]
     D --> E[Filter rows <= 60]
     E --> F[data/processed/model_dataset.parquet]
-    F --> G[Train TextCNN + Numeric MLP]
-    G --> H[output/models/textcnn_mlp.pt]
+    F --> G[Train Numeric Temporal CNN]
+    G --> H[output/models/numeric_tcn.pt]
     G --> I[output/predictions]
     I --> J[Evaluate]
     J --> K[output/reports]
@@ -47,8 +47,8 @@ flowchart TD
 The pipeline has four responsibilities:
 
 1. Download or reuse the local Kaggle raw dataset.
-2. Convert first-60-minute event streams into one row per match.
-3. Train one hybrid text and numeric classifier.
+2. Convert first-60-minute event streams into 5-minute numeric windows per match.
+3. Train one numeric temporal classifier.
 4. Generate prediction, metric, report, and figure artifacts.
 
 ## Split Strategy
@@ -77,30 +77,28 @@ Splits are assigned inside each `seasonType-leagueId-year` group. This prevents 
 | Player stats | Excluded until explicit lagging is implemented.                                                                       |
 | Standings    | Excluded until scrape-time snapshots are converted into safe pre-match features.                                      |
 
-Feature construction aggregates play, key-event, commentary, coordinate, and lineup inputs with `eventId` groupby and pivot operations before joining them onto fixtures. This keeps preprocessing on optimized tabular operations instead of Python-level loops over every match event.
+Feature construction aggregates play, key-event, commentary, coordinate, and lineup inputs with `eventId` groupby and pivot operations inside each 5-minute window. Each window contains current-window counts, cumulative match state, score and event differentials, coordinate summaries, and safe lineup features.
 
 ## Model
 
 ```mermaid
 flowchart TD
-    A[First-60-minute token IDs] --> B[Embedding From Scratch]
-    B --> C[TextCNN]
-    D[First-60-minute numeric vector] --> E[Numeric MLP]
-    C --> F[Concatenate]
-    E --> F
-    F --> G[Fusion MLP]
-    G --> H[Home/Draw/Away Logits]
+    A[12 numeric windows] --> B[Per-window Projection]
+    B --> C[Residual Temporal Conv Blocks]
+    C --> D[Max Pool + Mean Pool + Last State]
+    D --> E[Classifier MLP]
+    E --> F[Home/Draw/Away Logits]
 ```
 
-The model is `FirstHalfClassifier` in `fig.py`.
+The model is `NumericWindowTCN` in `fig.py`.
 
 For each match:
 
-- the text branch embeds token IDs and applies several 1D convolution kernels;
-- the numeric branch projects first-60-minute event, score-state, coordinate, and safe lineup features;
-- both representations are concatenated and passed through a final classifier.
+- every 5-minute window is projected into a learned numeric representation;
+- residual 1D convolution blocks model short temporal patterns across the 12 windows;
+- max pooling, mean pooling, and the final window state are concatenated for classification.
 
-There is no GRU and no time-window sequence.
+There is no GRU, LSTM, TextCNN, or text embedding branch.
 
 ## Evaluation
 

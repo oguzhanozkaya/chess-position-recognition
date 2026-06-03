@@ -2,7 +2,7 @@
 
 Run locally with `uv run python fig.py` or in Colab after installing the dependencies.
 The script downloads the Kaggle dataset when `data/raw/` does not already contain it,
-builds leakage-safe first-60-minute features, trains one TextCNN + numeric MLP classifier,
+builds leakage-safe 5-minute numeric windows, trains one Temporal CNN classifier,
 and writes predictions, metrics, reports, and figures under `output/`.
 """
 
@@ -16,7 +16,6 @@ import re
 import subprocess
 import sys
 import zipfile
-from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -49,37 +48,34 @@ SEED = 67
 EPOCHS = 24000
 PATIENCE = 2400
 BATCH_SIZE = 1024
-LEARNING_RATE = 0.01
-WEIGHT_DECAY = 0.0001
+LEARNING_RATE = 0.001
+WEIGHT_DECAY = 0.001
 EARLY_STOPPING_MIN_DELTA = 0.001
 DEVICE = "cuda"
 CUTOFF_MINUTE = 60
-MAX_TOKENS = 1024
-MAX_VOCAB_SIZE = 600
+WINDOW_MINUTES = 5
 TOP_PLAY_TYPES = 30
 TOP_KEY_EVENT_TYPES = 24
 TOP_FORMATIONS = 12
-TEXT_EMBEDDING_DIM = 64
-TEXT_CHANNEL_COUNT = 48
-TEXT_KERNEL_SIZES = (3, 4, 5)
-TEXT_DROPOUT = 0.25
-NUMERIC_HIDDEN_SIZE = 128
+NUMERIC_PROJECTION_SIZE = 128
+TEMPORAL_CHANNEL_COUNT = 128
+TEMPORAL_KERNEL_SIZE = 3
+TEMPORAL_BLOCK_COUNT = 2
 FUSION_HIDDEN_SIZE = 128
-DROPOUT = 0.06
+DROPOUT = 0.24
 DATALOADER_WORKERS = 4
 MIXED_PRECISION = True
 COMPILE_MODEL = False
 MATCH_LIMIT = 0
+USE_PREPROCESS_CACHE = True
+FORCE_REPROCESS = False
+CHECKPOINT_INTERVAL_EPOCHS = 100
+PREPROCESS_CACHE_VERSION = 2
 
 LABELS = ("home", "draw", "away")
 LABEL_TO_ID = {label: index for index, label in enumerate(LABELS)}
 ID_TO_LABEL = {index: label for label, index in LABEL_TO_ID.items()}
 COMPLETED_STATUS_IDS = {28}
-PAD_TOKEN = "<pad>"
-UNK_TOKEN = "<unk>"
-PAD_ID = 0
-UNK_ID = 1
-TOKEN_PATTERN = re.compile(r"\b\w+\b", re.UNICODE)
 
 
 @dataclass(frozen=True)
@@ -93,22 +89,23 @@ class Config:
     min_delta: float = EARLY_STOPPING_MIN_DELTA
     device: str = DEVICE
     cutoff_minute: int = CUTOFF_MINUTE
-    max_tokens: int = MAX_TOKENS
-    max_vocab_size: int = MAX_VOCAB_SIZE
+    window_minutes: int = WINDOW_MINUTES
     top_play_types: int = TOP_PLAY_TYPES
     top_key_event_types: int = TOP_KEY_EVENT_TYPES
     top_formations: int = TOP_FORMATIONS
-    text_embedding_dim: int = TEXT_EMBEDDING_DIM
-    text_channel_count: int = TEXT_CHANNEL_COUNT
-    text_kernel_sizes: tuple[int, ...] = TEXT_KERNEL_SIZES
-    text_dropout: float = TEXT_DROPOUT
-    numeric_hidden_size: int = NUMERIC_HIDDEN_SIZE
+    numeric_projection_size: int = NUMERIC_PROJECTION_SIZE
+    temporal_channel_count: int = TEMPORAL_CHANNEL_COUNT
+    temporal_kernel_size: int = TEMPORAL_KERNEL_SIZE
+    temporal_block_count: int = TEMPORAL_BLOCK_COUNT
     fusion_hidden_size: int = FUSION_HIDDEN_SIZE
     dropout: float = DROPOUT
     dataloader_workers: int = DATALOADER_WORKERS
     mixed_precision: bool = MIXED_PRECISION
     compile_model: bool = COMPILE_MODEL
     match_limit: int = MATCH_LIMIT
+    use_preprocess_cache: bool = USE_PREPROCESS_CACHE
+    force_reprocess: bool = FORCE_REPROCESS
+    checkpoint_interval_epochs: int = CHECKPOINT_INTERVAL_EPOCHS
 
 
 def ensure_dirs() -> None:
@@ -195,10 +192,6 @@ def clock_to_minute(value: object) -> float | None:
         return float(stoppage.group("minute")) + float(stoppage.group("extra"))
     minute = re.search(r"(?P<minute>\d+)", text)
     return float(minute.group("minute")) if minute else None
-
-
-def tokenize(text: str) -> list[str]:
-    return [match.group(0).lower() for match in TOKEN_PATTERN.finditer(text)]
 
 
 def build_fixture_table(config: Config) -> pd.DataFrame:
@@ -291,8 +284,7 @@ def prepare_plays(event_ids: set[int], cutoff_minute: int) -> pd.DataFrame:
     plays["minute"] = (
         plays["clockValue"].map(clock_to_minute).combine_first(plays["clockDisplayValue"].map(clock_to_minute))
     )
-    plays["period"] = pd.to_numeric(plays["period"], errors="coerce").fillna(1)
-    plays = plays[(plays["period"] <= 1) & plays["minute"].notna() & (plays["minute"] <= cutoff_minute)].copy()
+    plays = plays[plays["minute"].notna() & (plays["minute"] <= cutoff_minute)].copy()
     plays["text_combined"] = plays[["text", "shortText"]].fillna("").agg(" ".join, axis=1)
     return plays
 
@@ -318,8 +310,7 @@ def prepare_key_events(event_ids: set[int], cutoff_minute: int) -> pd.DataFrame:
     events["minute"] = (
         events["clockValue"].map(clock_to_minute).combine_first(events["clockDisplayValue"].map(clock_to_minute))
     )
-    events["period"] = pd.to_numeric(events["period"], errors="coerce").fillna(1)
-    events = events[(events["period"] <= 1) & events["minute"].notna() & (events["minute"] <= cutoff_minute)].copy()
+    events = events[events["minute"].notna() & (events["minute"] <= cutoff_minute)].copy()
     events["text_combined"] = events[["keyEventText", "keyEventShortText"]].fillna("").agg(" ".join, axis=1)
     return events
 
@@ -347,53 +338,6 @@ def prepare_lineups(event_ids: set[int]) -> pd.DataFrame:
 def top_values(series: pd.Series, limit: int) -> list[int]:
     values = pd.to_numeric(series, errors="coerce").dropna().astype(int)
     return values.value_counts().head(limit).index.tolist()
-
-
-def lineup_features(lineups: pd.DataFrame, formations: list[str]) -> dict[int, dict[str, float]]:
-    result: dict[int, dict[str, float]] = defaultdict(dict)
-    if lineups.empty:
-        return result
-    for (event_id, home_away), group in lineups.groupby(["eventId", "homeAway"], dropna=True):
-        prefix = "home" if str(home_away) == "home" else "away"
-        result[int(event_id)][f"{prefix}_starter_count"] = float(
-            pd.to_numeric(group["starter"], errors="coerce").fillna(0).sum()
-        )
-        for formation in formations:
-            result[int(event_id)][f"{prefix}_formation_{formation}"] = float(
-                (group["formation"].astype(str) == formation).any()
-            )
-    return result
-
-
-def build_vocabulary(texts: pd.Series, max_size: int) -> dict[str, int]:
-    counter: Counter[str] = Counter()
-    for text in texts:
-        counter.update(tokenize(str(text)))
-    vocabulary = {PAD_TOKEN: PAD_ID, UNK_TOKEN: UNK_ID}
-    for token, _count in counter.most_common(max(max_size - len(vocabulary), 0)):
-        vocabulary[token] = len(vocabulary)
-    return vocabulary
-
-
-def encode_text(text: str, vocabulary: dict[str, int], max_tokens: int) -> list[int]:
-    token_ids = [vocabulary.get(token, UNK_ID) for token in tokenize(str(text))[:max_tokens]]
-    token_ids.extend([PAD_ID] * (max_tokens - len(token_ids)))
-    return token_ids
-
-
-def _join_texts(series: pd.Series) -> str:
-    return " ".join(value for value in series.dropna().astype(str) if value)
-
-
-def build_text_by_event(plays: pd.DataFrame, key_events: pd.DataFrame, commentary: pd.DataFrame) -> pd.Series:
-    frames = []
-    for frame in (plays, key_events, commentary):
-        if not frame.empty:
-            frames.append(frame[["eventId", "text_combined"]])
-    if not frames:
-        return pd.Series(dtype=str)
-    text_rows = pd.concat(frames, ignore_index=True)
-    return text_rows.groupby("eventId")["text_combined"].agg(_join_texts)
 
 
 def add_event_aggregates(
@@ -480,7 +424,7 @@ def build_lineup_feature_frame(lineups: pd.DataFrame, formations: list[str]) -> 
     if prepared.empty:
         return pd.DataFrame()
     prepared["starter"] = pd.to_numeric(prepared["starter"], errors="coerce").fillna(0.0)
-    starter_counts = prepared.groupby(["eventId", "homeAway"])["starter"].sum().unstack(fill_value=0.0)
+    starter_counts = prepared.groupby(["eventId", "homeAway"])["starter"].sum().unstack().fillna(0.0)
     starter_counts = starter_counts.rename(columns={"home": "home_starter_count", "away": "away_starter_count"})
 
     pieces = [starter_counts]
@@ -493,7 +437,115 @@ def build_lineup_feature_frame(lineups: pd.DataFrame, formations: list[str]) -> 
     return pd.concat(pieces, axis=1)
 
 
-def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict[str, int]]:
+def window_count(config: Config) -> int:
+    return int(math.ceil(config.cutoff_minute / config.window_minutes))
+
+
+def preprocess_cache_key(config: Config) -> dict[str, object]:
+    """Settings that change the processed dataset shape or values."""
+
+    return {
+        "version": PREPROCESS_CACHE_VERSION,
+        "cutoff_minute": config.cutoff_minute,
+        "window_minutes": config.window_minutes,
+        "top_play_types": config.top_play_types,
+        "top_key_event_types": config.top_key_event_types,
+        "top_formations": config.top_formations,
+        "match_limit": config.match_limit,
+    }
+
+
+def load_cached_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object]] | None:
+    dataset_path = PROCESSED_DIR / "model_dataset.parquet"
+    metadata_path = PROCESSED_DIR / "feature_metadata.json"
+    if config.force_reprocess or not config.use_preprocess_cache:
+        return None
+    if not dataset_path.is_file() or not metadata_path.is_file():
+        return None
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if metadata.get("preprocess_cache_key") != preprocess_cache_key(config):
+        print("preprocess: cache miss because preprocessing settings changed")
+        return None
+    dataset = pd.read_parquet(dataset_path)
+    if "numeric_sequence" not in dataset.columns:
+        print("preprocess: cache miss because cached dataset is not numeric-window format")
+        return None
+    print(f"preprocess: loaded cached model_dataset rows={len(dataset):,}")
+    return dataset, metadata
+
+
+def load_or_build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object]]:
+    cached = load_cached_dataset(config)
+    if cached is not None:
+        return cached
+    dataset, metadata = build_dataset(config)
+    write_dataset_artifacts(dataset, metadata)
+    return dataset, metadata
+
+
+def event_window_filter(frame: pd.DataFrame, window_index: int, config: Config) -> pd.DataFrame:
+    start_minute = window_index * config.window_minutes
+    end_minute = min((window_index + 1) * config.window_minutes, config.cutoff_minute)
+    lower_mask = frame["minute"] >= start_minute if window_index == 0 else frame["minute"] > start_minute
+    return frame[lower_mask & (frame["minute"] <= end_minute)]
+
+
+def add_state_features(frame: pd.DataFrame) -> pd.DataFrame:
+    frame = frame.copy()
+    frame["score_diff"] = frame["home_goals"] - frame["away_goals"]
+    frame["play_diff"] = frame["home_play_count"] - frame["away_play_count"]
+    frame["key_event_diff"] = frame["home_key_event_count"] - frame["away_key_event_count"]
+    total_home_events = frame["home_play_count"] + frame["home_key_event_count"]
+    total_away_events = frame["away_play_count"] + frame["away_key_event_count"]
+    total_events = total_home_events + total_away_events
+    frame["home_event_share"] = np.divide(
+        total_home_events,
+        total_events,
+        out=np.full(len(frame), 0.5, dtype=float),
+        where=total_events.to_numpy(dtype=float) > 0,
+    )
+    return frame
+
+
+def window_feature_frame(
+    fixtures: pd.DataFrame,
+    plays: pd.DataFrame,
+    key_events: pd.DataFrame,
+    commentary: pd.DataFrame,
+    play_types: list[int],
+    key_types: list[int],
+    count_features: list[str],
+    window_index: int,
+    config: Config,
+) -> pd.DataFrame:
+    frame = pd.DataFrame(
+        0.0,
+        index=pd.Index(fixtures["eventId"].astype(int), name="eventId"),
+        columns=[*count_features, "mean_field_x", "mean_field_y"],
+    )
+    window_plays = event_window_filter(plays, window_index, config) if not plays.empty else plays
+    window_key_events = event_window_filter(key_events, window_index, config) if not key_events.empty else key_events
+    window_commentary = event_window_filter(commentary, window_index, config) if not commentary.empty else commentary
+    add_event_aggregates(frame, window_plays, fixtures, prefix="play", type_column="typeId", type_values=play_types)
+    add_event_aggregates(
+        frame, window_key_events, fixtures, prefix="key_event", type_column="keyEventTypeId", type_values=key_types
+    )
+    if not window_commentary.empty:
+        frame.loc[:, "commentary_count"] = frame["commentary_count"].add(
+            window_commentary.groupby("eventId").size(), fill_value=0
+        )
+    position_features = build_position_features(window_plays, window_key_events)
+    for column in position_features.columns:
+        if column in frame:
+            frame.loc[:, column] = frame[column].add(position_features[column], fill_value=0)
+    return add_state_features(frame.fillna(0.0))
+
+
+def prefixed_frame(frame: pd.DataFrame, prefix: str, columns: list[str]) -> pd.DataFrame:
+    return frame[columns].rename(columns={column: f"{prefix}_{column}" for column in columns})
+
+
+def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object]]:
     print("preprocess: building fixtures with league-aware chronological splits")
     fixtures = assign_league_chronological_splits(build_fixture_table(config))
     event_ids = set(fixtures["eventId"].astype(int))
@@ -524,7 +576,7 @@ def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict
         if not lineups.empty
         else []
     )
-    numeric_features = [
+    count_features = [
         "play_count",
         "key_event_count",
         "commentary_count",
@@ -534,38 +586,59 @@ def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict
         "away_key_event_count",
         "home_goals",
         "away_goals",
-        "score_diff",
         "scoring_play_count",
-        "mean_field_x",
-        "mean_field_y",
         *[f"play_type_{value}" for value in play_types],
         *[f"key_event_type_{value}" for value in key_types],
+    ]
+    state_features = [
+        *count_features,
+        "score_diff",
+        "play_diff",
+        "key_event_diff",
+        "home_event_share",
+    ]
+    window_only_features = ["mean_field_x", "mean_field_y"]
+    static_features = [
         "home_starter_count",
         "away_starter_count",
         *[f"home_formation_{formation}" for formation in formations],
         *[f"away_formation_{formation}" for formation in formations],
     ]
-    print("preprocess: aggregating event features with vectorized groupby operations")
-    features = pd.DataFrame(
-        0.0, index=pd.Index(fixtures["eventId"].astype(int), name="eventId"), columns=numeric_features
-    )
-    add_event_aggregates(features, plays, fixtures, prefix="play", type_column="typeId", type_values=play_types)
-    add_event_aggregates(
-        features, key_events, fixtures, prefix="key_event", type_column="keyEventTypeId", type_values=key_types
-    )
-    if not commentary.empty:
-        features.loc[:, "commentary_count"] = features["commentary_count"].add(
-            commentary.groupby("eventId").size(), fill_value=0
-        )
-    position_features = build_position_features(plays, key_events)
-    for column in position_features.columns:
-        features.loc[:, column] = features[column].add(position_features[column], fill_value=0)
+    numeric_features = [
+        *[f"window_{column}" for column in [*state_features, *window_only_features]],
+        *[f"cumulative_{column}" for column in state_features],
+        *static_features,
+    ]
+    print("preprocess: building 5-minute numeric windows with vectorized groupby operations")
     lineup_frame = build_lineup_feature_frame(lineups, formations)
+    static_frame = pd.DataFrame(
+        0.0, index=pd.Index(fixtures["eventId"].astype(int), name="eventId"), columns=static_features
+    )
     for column in lineup_frame.columns:
-        if column in features:
-            features.loc[:, column] = features[column].add(lineup_frame[column], fill_value=0)
-    features.loc[:, "score_diff"] = features["home_goals"] - features["away_goals"]
-    features = features.fillna(0.0)
+        if column in static_frame:
+            static_frame.loc[:, column] = static_frame[column].add(lineup_frame[column], fill_value=0)
+    static_frame = static_frame.fillna(0.0)
+
+    cumulative_counts = pd.DataFrame(
+        0.0, index=pd.Index(fixtures["eventId"].astype(int), name="eventId"), columns=count_features
+    )
+    sequence_frames = []
+    for index in range(window_count(config)):
+        current = window_feature_frame(
+            fixtures, plays, key_events, commentary, play_types, key_types, count_features, index, config
+        )
+        cumulative_counts = cumulative_counts.add(current[count_features], fill_value=0.0)
+        cumulative = add_state_features(cumulative_counts.fillna(0.0))
+        combined = pd.concat(
+            [
+                prefixed_frame(current, "window", [*state_features, *window_only_features]),
+                prefixed_frame(cumulative, "cumulative", state_features),
+                static_frame,
+            ],
+            axis=1,
+        )
+        sequence_frames.append(combined[numeric_features].fillna(0.0))
+    numeric_sequence = np.stack([frame.to_numpy(dtype=np.float32) for frame in sequence_frames], axis=1)
 
     dataset = fixtures[
         [
@@ -583,34 +656,28 @@ def build_dataset(config: Config) -> tuple[pd.DataFrame, dict[str, object], dict
         ]
     ].copy()
     dataset = dataset.rename(columns={"midsizeName": "league"})
-    text_by_event = build_text_by_event(plays, key_events, commentary)
-    dataset["text"] = dataset["eventId"].map(text_by_event).fillna("")
-    dataset["numeric_features"] = (
-        features.reindex(dataset["eventId"].astype(int))[numeric_features].astype(float).values.tolist()
-    )
-    vocabulary = build_vocabulary(dataset.loc[dataset["split"] == "train", "text"], config.max_vocab_size)
-    dataset["token_ids"] = dataset["text"].map(lambda text: encode_text(text, vocabulary, config.max_tokens))
+    dataset["numeric_sequence"] = numeric_sequence.tolist()
     metadata = {
         "target_labels": list(LABELS),
         "cutoff_minute": config.cutoff_minute,
-        "model": "first_60_minute_textcnn_numeric_mlp",
+        "window_minutes": config.window_minutes,
+        "window_count": window_count(config),
+        "model": "numeric_window_tcn",
         "split_strategy": "chronological_within_each_league_key",
         "numeric_feature_columns": numeric_features,
         "play_type_ids": play_types,
         "key_event_type_ids": key_types,
         "formation_values": formations,
-        "vocabulary_size": len(vocabulary),
-        "max_tokens": config.max_tokens,
+        "preprocess_cache_key": preprocess_cache_key(config),
         "config": asdict(config),
     }
-    return dataset, metadata, vocabulary
+    return dataset, metadata
 
 
-def write_dataset_artifacts(dataset: pd.DataFrame, metadata: dict[str, object], vocabulary: dict[str, int]) -> None:
+def write_dataset_artifacts(dataset: pd.DataFrame, metadata: dict[str, object]) -> None:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     dataset.to_parquet(PROCESSED_DIR / "model_dataset.parquet", index=False)
     (PROCESSED_DIR / "feature_metadata.json").write_text(json.dumps(metadata, indent=2, default=str), encoding="utf-8")
-    (PROCESSED_DIR / "text_vocabulary.json").write_text(json.dumps(vocabulary, indent=2), encoding="utf-8")
     split_summary = dataset.groupby(["league", "split"]).size().unstack(fill_value=0).sort_index()
     split_summary.to_csv(PROCESSED_DIR / "league_split_summary.csv")
     class_summary = dataset.groupby("split")["target_label"].value_counts().unstack(fill_value=0)
@@ -621,58 +688,67 @@ def write_dataset_artifacts(dataset: pd.DataFrame, metadata: dict[str, object], 
 
 
 class MatchDataset(Dataset):
-    def __init__(self, numeric: np.ndarray, tokens: np.ndarray, target: np.ndarray) -> None:
+    def __init__(self, numeric: np.ndarray, target: np.ndarray) -> None:
         self.numeric = torch.as_tensor(numeric.copy(), dtype=torch.float32)
-        self.tokens = torch.as_tensor(tokens.copy(), dtype=torch.long)
         self.target = torch.as_tensor(target.copy(), dtype=torch.long)
 
     def __len__(self) -> int:
         return len(self.target)
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
-        return {"numeric": self.numeric[index], "tokens": self.tokens[index], "target": self.target[index]}
+        return {"numeric": self.numeric[index], "target": self.target[index]}
 
 
-class TextCNNEncoder(nn.Module):
-    def __init__(self, vocabulary_size: int, config: Config) -> None:
+class TemporalConvBlock(nn.Module):
+    def __init__(self, channel_count: int, kernel_size: int, dropout: float) -> None:
         super().__init__()
-        self.embedding = nn.Embedding(vocabulary_size, config.text_embedding_dim, padding_idx=PAD_ID)
-        self.convolutions = nn.ModuleList(
-            nn.Conv1d(config.text_embedding_dim, config.text_channel_count, kernel_size=size)
-            for size in config.text_kernel_sizes
+        padding = kernel_size // 2
+        self.block = nn.Sequential(
+            nn.Conv1d(channel_count, channel_count, kernel_size=kernel_size, padding=padding),
+            nn.BatchNorm1d(channel_count),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Conv1d(channel_count, channel_count, kernel_size=kernel_size, padding=padding),
+            nn.BatchNorm1d(channel_count),
+            nn.ReLU(),
         )
-        self.dropout = nn.Dropout(config.text_dropout)
-        self.output_size = config.text_channel_count * len(config.text_kernel_sizes)
 
-    def forward(self, token_ids: torch.Tensor) -> torch.Tensor:
-        embedded = self.embedding(token_ids).transpose(1, 2)
-        pooled = []
-        for convolution in self.convolutions:
-            activation = torch.relu(convolution(embedded))
-            pooled.append(torch.max(activation, dim=2).values)
-        return self.dropout(torch.cat(pooled, dim=1))
+    def forward(self, values: torch.Tensor) -> torch.Tensor:
+        return values + self.block(values)
 
 
-class FirstHalfClassifier(nn.Module):
-    def __init__(self, numeric_input_size: int, vocabulary_size: int, config: Config) -> None:
+class NumericWindowTCN(nn.Module):
+    def __init__(self, numeric_input_size: int, config: Config) -> None:
         super().__init__()
-        self.text_encoder = TextCNNEncoder(vocabulary_size, config)
-        self.numeric_encoder = nn.Sequential(
-            nn.Linear(numeric_input_size, config.numeric_hidden_size),
+        self.window_projection = nn.Sequential(
+            nn.Linear(numeric_input_size, config.numeric_projection_size),
             nn.ReLU(),
             nn.Dropout(config.dropout),
-            nn.Linear(config.numeric_hidden_size, config.numeric_hidden_size),
-            nn.ReLU(),
         )
+        self.channel_projection = nn.Conv1d(
+            config.numeric_projection_size, config.temporal_channel_count, kernel_size=1
+        )
+        self.temporal_blocks = nn.Sequential(
+            *[
+                TemporalConvBlock(config.temporal_channel_count, config.temporal_kernel_size, config.dropout)
+                for _ in range(config.temporal_block_count)
+            ]
+        )
+        pooled_size = config.temporal_channel_count * 3
         self.head = nn.Sequential(
-            nn.Linear(self.text_encoder.output_size + config.numeric_hidden_size, config.fusion_hidden_size),
+            nn.Linear(pooled_size, config.fusion_hidden_size),
             nn.ReLU(),
             nn.Dropout(config.dropout),
             nn.Linear(config.fusion_hidden_size, len(LABELS)),
         )
 
-    def forward(self, numeric: torch.Tensor, tokens: torch.Tensor) -> torch.Tensor:
-        return self.head(torch.cat([self.numeric_encoder(numeric), self.text_encoder(tokens)], dim=1))
+    def forward(self, numeric_sequence: torch.Tensor) -> torch.Tensor:
+        projected = self.window_projection(numeric_sequence).transpose(1, 2)
+        encoded = self.temporal_blocks(self.channel_projection(projected))
+        max_pool = torch.amax(encoded, dim=2)
+        mean_pool = torch.mean(encoded, dim=2)
+        last_state = encoded[:, :, -1]
+        return self.head(torch.cat([max_pool, mean_pool, last_state], dim=1))
 
 
 def select_device(name: str) -> torch.device:
@@ -691,21 +767,21 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def arrays_from_dataset(dataset: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, np.ndarray]]:
-    numeric = np.stack(dataset["numeric_features"].map(lambda values: np.asarray(values, dtype=np.float32))).astype(
+def arrays_from_dataset(dataset: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
+    numeric = np.stack(dataset["numeric_sequence"].map(lambda values: np.asarray(values, dtype=np.float32))).astype(
         np.float32
     )
-    tokens = np.stack(dataset["token_ids"].map(lambda values: np.asarray(values, dtype=np.int64))).astype(np.int64)
     target = dataset["target"].to_numpy(dtype=np.int64)
     split_indices = {
         split: np.flatnonzero(dataset["split"].to_numpy(dtype=str) == split).astype(np.int64)
         for split in ("train", "validation", "test")
     }
-    mean = numeric[split_indices["train"]].mean(axis=0, dtype=np.float64).astype(np.float32)
-    std = numeric[split_indices["train"]].std(axis=0, dtype=np.float64).astype(np.float32)
+    train_numeric = numeric[split_indices["train"]].reshape(-1, numeric.shape[2])
+    mean = train_numeric.mean(axis=0, dtype=np.float64).astype(np.float32)
+    std = train_numeric.std(axis=0, dtype=np.float64).astype(np.float32)
     std[std < 1e-6] = 1.0
     numeric = ((numeric - mean) / std).astype(np.float32)
-    return numeric, tokens, target, split_indices
+    return numeric, target, split_indices
 
 
 def make_loader(
@@ -738,12 +814,11 @@ def run_epoch(
     with torch.set_grad_enabled(training):
         for batch in loader:
             numeric = batch["numeric"].to(device, non_blocking=True)
-            tokens = batch["tokens"].to(device, non_blocking=True)
             target = batch["target"].to(device, non_blocking=True)
             if training:
                 optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, enabled=use_amp):
-                logits = model(numeric, tokens)
+                logits = model(numeric)
                 loss = criterion(logits, target)
             if training:
                 if scaler is not None:
@@ -769,25 +844,52 @@ def predict(model: nn.Module, loader: DataLoader, device: torch.device, use_amp:
     with torch.inference_mode():
         for batch in loader:
             numeric = batch["numeric"].to(device, non_blocking=True)
-            tokens = batch["tokens"].to(device, non_blocking=True)
             with torch.autocast(device_type=device.type, enabled=use_amp):
-                logits = model(numeric, tokens)
+                logits = model(numeric)
             probabilities.append(torch.softmax(logits, dim=1).cpu().numpy())
             targets.append(batch["target"].numpy())
     return np.concatenate(probabilities), np.concatenate(targets)
 
 
+def save_epoch_checkpoint(
+    epoch: int,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau,
+    metadata: dict[str, object],
+    config: Config,
+    history: list[dict[str, float | int]],
+) -> None:
+    if config.checkpoint_interval_epochs <= 0 or epoch % config.checkpoint_interval_epochs != 0:
+        return
+    checkpoint_path = MODELS_DIR / f"numeric_tcn_epoch_{epoch:05d}.pt"
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optimizer_state": optimizer.state_dict(),
+            "scheduler_state": scheduler.state_dict(),
+            "metadata": metadata,
+            "config": asdict(config),
+            "history": history,
+        },
+        checkpoint_path,
+    )
+    write_training_history(pd.DataFrame(history))
+    print(f"train: wrote checkpoint {checkpoint_path.relative_to(ROOT)}")
+
+
 def train_model(dataset: pd.DataFrame, metadata: dict[str, object], config: Config) -> pd.DataFrame:
     set_seed(config.seed)
     device = select_device(config.device)
-    numeric, tokens, target, split_indices = arrays_from_dataset(dataset)
-    tensor_dataset = MatchDataset(numeric, tokens, target)
+    numeric, target, split_indices = arrays_from_dataset(dataset)
+    tensor_dataset = MatchDataset(numeric, target)
     loaders = {
         split: make_loader(tensor_dataset, indices, config, shuffle=(split == "train"), device=device)
         for split, indices in split_indices.items()
         if len(indices) > 0
     }
-    model = FirstHalfClassifier(numeric.shape[1], int(metadata["vocabulary_size"]), config).to(device)
+    model = NumericWindowTCN(numeric.shape[2], config).to(device)
     if config.compile_model:
         model = torch.compile(model)
     criterion = nn.CrossEntropyLoss()
@@ -798,7 +900,7 @@ def train_model(dataset: pd.DataFrame, metadata: dict[str, object], config: Conf
     split_counts = {split: int(len(indices)) for split, indices in split_indices.items()}
     print(
         "train: start "
-        f"device={device} rows={len(dataset):,} features={numeric.shape[1]} vocab={metadata['vocabulary_size']} "
+        f"device={device} rows={len(dataset):,} windows={numeric.shape[1]} features={numeric.shape[2]} "
         f"splits={split_counts}"
     )
 
@@ -837,6 +939,7 @@ def train_model(dataset: pd.DataFrame, metadata: dict[str, object], config: Conf
             f"train: epoch={epoch:04d} train_loss={train_loss:.6f} train_acc={train_accuracy:.4f} "
             f"val_loss={validation_loss:.6f} val_acc={validation_accuracy:.4f} lr={current_lr:.2e} stale={stale_epochs}"
         )
+        save_epoch_checkpoint(epoch, model, optimizer, scheduler, metadata, config, history)
         if stale_epochs >= config.patience:
             print(f"train: early stopping at epoch={epoch} best_validation_loss={best_validation_loss:.6f}")
             break
@@ -844,7 +947,7 @@ def train_model(dataset: pd.DataFrame, metadata: dict[str, object], config: Conf
         model.load_state_dict(best_state)
     torch.save(
         {"model_state": model.state_dict(), "metadata": metadata, "config": asdict(config)},
-        MODELS_DIR / "textcnn_mlp.pt",
+        MODELS_DIR / "numeric_tcn.pt",
     )
     write_training_history(pd.DataFrame(history))
 
@@ -933,7 +1036,7 @@ def save_figure(path: Path) -> Path:
 def evaluate(predictions: pd.DataFrame) -> None:
     metrics = pd.DataFrame(
         [
-            {"model_name": "textcnn_mlp", "split": split, **classification_metrics(group)}
+            {"model_name": "numeric_tcn", "split": split, **classification_metrics(group)}
             for split, group in predictions.groupby("split", sort=True)
         ]
     )
@@ -1036,20 +1139,21 @@ def write_evaluation_figures(predictions: pd.DataFrame, metrics: pd.DataFrame) -
 
 
 def clean_old_package_artifacts() -> None:
-    old_tensor = PROCESSED_DIR / "train_tensors.pt"
-    if old_tensor.exists():
-        old_tensor.unlink()
-    old_model = MODELS_DIR / "fusion_gru.pt"
-    if old_model.exists():
-        old_model.unlink()
+    for path in (
+        PROCESSED_DIR / "train_tensors.pt",
+        PROCESSED_DIR / "text_vocabulary.json",
+        MODELS_DIR / "fusion_gru.pt",
+        MODELS_DIR / "textcnn_mlp.pt",
+    ):
+        if path.exists():
+            path.unlink()
 
 
 def run_pipeline(config: Config) -> None:
     ensure_dirs()
     clean_old_package_artifacts()
     download_kaggle_dataset()
-    dataset, metadata, vocabulary = build_dataset(config)
-    write_dataset_artifacts(dataset, metadata, vocabulary)
+    dataset, metadata = load_or_build_dataset(config)
     predictions = train_model(dataset, metadata, config)
     evaluate(predictions)
     print("done: outputs written under output/ and data/processed/")

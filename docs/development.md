@@ -33,9 +33,9 @@ description: Conventions, rules and policies for project development.
 - Splits must be chronological inside each league-season key.
 - Feature engineering must respect the minute-60 cutoff.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded unless future work implements explicit lagging.
-- External pretrained language models, pretrained embeddings, and language model APIs are not allowed.
-- Text encoders must use tokenizers and embeddings trained on the project corpus from scratch.
-- The active model is one architecture only: first-60-minute TextCNN plus first-60-minute numeric MLP classifier.
+- External pretrained language models, pretrained embeddings, and language model APIs are not used.
+- Text is not an active model input in the current numeric-window pipeline.
+- The active model is one architecture only: numeric Temporal CNN over 5-minute windows.
 
 ## Workflow
 

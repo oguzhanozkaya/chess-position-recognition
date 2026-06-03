@@ -4,7 +4,7 @@
 
 This project predicts the final result of a football match from in-play information available through minute 60. The target is a three-class outcome: home win, draw, or away win.
 
-The pipeline is a single root script, `fig.py`. It downloads the Kaggle ESPN Soccer dataset when local raw files are missing, builds leakage-safe first-60-minute features, trains one raw-PyTorch classifier, and writes evaluation artifacts.
+The pipeline is a single root script, `fig.py`. It downloads the Kaggle ESPN Soccer dataset when local raw files are missing, builds leakage-safe 5-minute numeric windows through minute 60, trains one raw-PyTorch Temporal CNN classifier, and writes evaluation artifacts.
 
 ## Forecast Target
 
@@ -40,8 +40,7 @@ Each observation in `data/processed/model_dataset.parquet` represents one comple
 | ------------ | ------------------------------------------------------------------------------------- |
 | Time keys    | Match date, split, league, league-season key, event id                                |
 | Target       | Final result label and numeric class id                                               |
-| Text         | One tokenized first-60-minute text sequence per match                                 |
-| Numeric      | One first-60-minute numeric feature vector per match                                  |
+| Numeric      | One 5-minute numeric feature sequence per match, from `0-5` through `55-60`           |
 | Leakage rule | No play, key event, commentary, or unsafe lineup data after minute 60 may enter input |
 
 ## Outputs
@@ -97,28 +96,29 @@ Pipeline and model settings are Python constants near the top of `fig.py`. Edit 
 | Constant                   | Default     | Description                                      |
 | -------------------------- | ----------- | ------------------------------------------------ |
 | `SEED`                     | `67`        | Random seed.                                     |
-| `EPOCHS`                   | `1200`      | Maximum training epochs.                         |
-| `PATIENCE`                 | `50`        | Early-stopping patience.                         |
-| `BATCH_SIZE`               | `512`       | Mini-batch size.                                 |
-| `LEARNING_RATE`            | `0.0001`    | AdamW learning rate.                             |
+| `EPOCHS`                   | `24000`     | Maximum training epochs.                         |
+| `PATIENCE`                 | `2400`      | Early-stopping patience.                         |
+| `BATCH_SIZE`               | `1024`      | Mini-batch size.                                 |
+| `LEARNING_RATE`            | `0.01`      | AdamW learning rate.                             |
 | `WEIGHT_DECAY`             | `0.0001`    | AdamW weight decay.                              |
 | `EARLY_STOPPING_MIN_DELTA` | `0.001`     | Minimum validation-loss improvement.             |
 | `DEVICE`                   | `cuda`      | Training device: `cuda`, `cpu`, or `auto`.       |
 | `CUTOFF_MINUTE`            | `60`        | Last match minute allowed in model inputs.       |
-| `MAX_TOKENS`               | `256`       | Maximum first-60-minute text tokens per match.   |
-| `MAX_VOCAB_SIZE`           | `6000`      | Maximum train-split vocabulary size.             |
-| `TEXT_EMBEDDING_DIM`       | `64`        | Text embedding dimension.                        |
-| `TEXT_CHANNEL_COUNT`       | `48`        | TextCNN channels per kernel size.                |
-| `TEXT_KERNEL_SIZES`        | `(3, 4, 5)` | TextCNN kernel sizes.                            |
-| `NUMERIC_HIDDEN_SIZE`      | `128`       | Numeric MLP hidden width.                        |
+| `WINDOW_MINUTES`           | `5`         | Match-time window size.                          |
+| `NUMERIC_PROJECTION_SIZE`  | `128`       | Per-window numeric projection width.             |
+| `TEMPORAL_CHANNEL_COUNT`   | `128`       | Temporal CNN channel count.                      |
+| `TEMPORAL_KERNEL_SIZE`     | `3`         | Temporal convolution kernel size.                |
+| `TEMPORAL_BLOCK_COUNT`     | `2`         | Residual temporal convolution block count.       |
 | `FUSION_HIDDEN_SIZE`       | `128`       | Final fusion classifier width.                   |
-| `DROPOUT`                  | `0.25`      | Numeric and fusion dropout.                      |
-| `TEXT_DROPOUT`             | `0.25`      | Text branch dropout.                             |
+| `DROPOUT`                  | `0.06`      | Numeric and fusion dropout.                      |
 | `DATALOADER_WORKERS`       | `4`         | DataLoader worker count.                         |
 | `MIXED_PRECISION`          | `True`      | Use CUDA automatic mixed precision.              |
 | `COMPILE_MODEL`            | `False`     | Compile the PyTorch model before training.       |
 | `MATCH_LIMIT`              | `0`         | Optional smoke/debug match limit; `0` means all. |
+| `USE_PREPROCESS_CACHE`     | `True`      | Reuse matching `model_dataset.parquet` cache.    |
+| `FORCE_REPROCESS`          | `False`     | Ignore cache and rebuild processed data.         |
+| `CHECKPOINT_INTERVAL_EPOCHS` | `100`     | Save model checkpoint/history every N epochs; `0` disables periodic checkpoints. |
 
 ## Success Criteria
 
-The project is complete when `just run` can download or reuse local ESPN data, build leakage-safe first-60-minute match features, train the single TextCNN plus numeric MLP classifier, evaluate chronological league-aware splits, and generate report-ready outputs.
+The project is complete when `just run` can download or reuse local ESPN data, build leakage-safe 5-minute numeric windows, train the single numeric Temporal CNN classifier, evaluate chronological league-aware splits, and generate report-ready outputs.

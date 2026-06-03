@@ -12,7 +12,7 @@ The repository is command-first and centered on one root script.
 /
 ├── data/
 │   ├── raw/                    # Local ESPN Soccer dataset directories
-│   └── processed/              # Model-ready dataset, metadata, vocabulary, split summaries
+│   └── processed/              # Model-ready dataset, metadata, split summaries
 ├── docs/                       # Documentation source
 ├── output/
 │   ├── figures/                # Training and evaluation plots
@@ -36,8 +36,8 @@ Generated data and model artifacts live outside source-controlled code.
 | Download             | Reuse local ESPN raw data or download it from Kaggle with configured credentials               |
 | Fixture preparation  | Build completed-match labels and chronological train/validation/test splits within each league |
 | Event preparation    | Filter plays, key events, and commentary to information available through minute 60            |
-| Feature construction | Build one first-60-minute text field and one first-60-minute numeric vector per match          |
-| Training             | Train the raw-PyTorch TextCNN plus numeric MLP classifier                                      |
+| Feature construction | Build one 5-minute numeric feature sequence per match through minute 60                        |
+| Training             | Train the raw-PyTorch numeric Temporal CNN classifier                                          |
 | Evaluation           | Write predictions, metrics, per-class reports, error examples, and figures                     |
 
 ## Data Directories
@@ -47,7 +47,7 @@ Generated data and model artifacts live outside source-controlled code.
 | `data/raw/`       | Local Kaggle ESPN Soccer dataset directories | ignored    |
 | `data/processed/` | Leakage-safe model dataset and metadata      | ignored    |
 
-The script writes `model_dataset.parquet`, `feature_metadata.json`, `text_vocabulary.json`, `league_split_summary.csv`, and `split_class_summary.csv` under `data/processed/`.
+The script writes `model_dataset.parquet`, `feature_metadata.json`, `league_split_summary.csv`, and `split_class_summary.csv` under `data/processed/`.
 
 ## Output Directories
 

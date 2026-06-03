@@ -6,7 +6,7 @@ description: Tasks, priorities, known bugs, and the project roadmap.
 
 ## Status Overview
 
-The repository is implemented as a single-script football in-play prediction pipeline. The current pipeline downloads or validates ESPN Soccer data, builds leakage-safe minute-60 match features, trains one first-60-minute TextCNN plus numeric MLP classifier, and evaluates home/draw/away classification outputs.
+The repository is implemented as a single-script football in-play prediction pipeline. The current pipeline downloads or validates ESPN Soccer data, builds leakage-safe 5-minute numeric windows through minute 60, trains one numeric Temporal CNN classifier, and evaluates home/draw/away classification outputs.
 
 | Area                             | Status      |
 | -------------------------------- | ----------- |
@@ -17,7 +17,7 @@ The repository is implemented as a single-script football in-play prediction pip
 | Raw data validation              | Implemented |
 | Minute-60 preprocessing          | Implemented |
 | League-aware chronological split | Implemented |
-| Single TextCNN plus MLP model    | Implemented |
+| Single numeric Temporal CNN      | Implemented |
 | Evaluation reports               | Implemented |
 | Article draft                    | Implemented |
 
@@ -35,12 +35,11 @@ The repository is implemented as a single-script football in-play prediction pip
 - `just run` executes `uv run python fig.py`.
 - `just smoke` runs a short CPU end-to-end pipeline through a direct `Config` override.
 - The script downloads the Kaggle ESPN Soccer dataset when `data/raw/` is missing required directories.
-- Preprocessing writes `model_dataset.parquet`, metadata, vocabulary, and split summaries.
+- Preprocessing writes `model_dataset.parquet`, metadata, and split summaries.
 - Preprocessing slices plays, key events, and commentary through minute 60 only.
 - Splits are assigned chronologically inside each league-season key.
-- The text vocabulary is built from the train split only.
 - Full-match team statistics, standings snapshots, and scrape-time player aggregates are excluded from first-model inputs.
-- The model has no GRU and no time-window sequence.
+- The model has no GRU, LSTM, TextCNN, or text embedding branch.
 - Training writes a PyTorch checkpoint, predictions, training history, and a training-loss figure.
 - Evaluation writes JSON/Markdown classification metrics, a per-class report, high-confidence error examples, and evaluation figures.
 

@@ -24,6 +24,9 @@ check:
   uv run ruff format . --check
   uv run ruff check .
 
+[group('qual')]
+ci: check
+
 [group('clean')]
 clean:
   uv run ruff clean

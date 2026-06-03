@@ -27,8 +27,7 @@ The target repository structure is command-first and package-based. Generated da
 │       ├── download.py         # Download entrypoint and raw source manifest writing
 │       ├── preprocess.py       # Preprocess entrypoint and processed dataset construction
 │       ├── train.py            # Training entrypoint, baselines, and PyTorch models
-│       ├── evaluate.py         # Evaluation entrypoint and metrics reports
-│       └── plots.py            # Plot entrypoint and report figure generation
+│       └── evaluate.py         # Evaluation entrypoint, metrics reports, and figures
 ├── tests/                      # One test file per source file
 ├── .gitattributes              # Git attributes
 ├── .gitignore                  # Git ignore rules
@@ -56,8 +55,7 @@ max_tokens = tif.utils.MAX_TOKENS
 | `download.py`   | Raw source downloads, CBRT FX archive downloads, text document downloads                                               |
 | `preprocess.py` | CPI target parsing, numeric normalization, text body extraction, leakage-safe feature generation, and processed writes |
 | `train.py`      | Baselines, classical models, PyTorch model definitions, training, predictions                                          |
-| `evaluate.py`   | MAE, RMSE, direction accuracy, and baseline delta reports                                                              |
-| `plots.py`      | Static report figures for CPI history, predictions, residuals, and comparison                                          |
+| `evaluate.py`   | MAE, RMSE, direction accuracy, baseline delta reports, and static report figures                                       |
 
 Tests mirror this source layout. Each source file has one corresponding test file under `tests/`, for example `src/tif/preprocess.py` is covered by `tests/test_preprocess.py`.
 
@@ -102,18 +100,17 @@ Project commands are standardized through `justfile`. Recipes call stage-specifi
 
 Stage-level command mapping:
 
-| Recipe            | Console entrypoint               | Responsibility                                   |
-| ----------------- | -------------------------------- | ------------------------------------------------ |
-| `just sync`       | `uv sync`                        | Install or update the Python environment         |
-| `just download`   | `tif-download`                   | Download numeric data and text sources           |
-| `just preprocess` | `tif-preprocess`                 | Clean raw sources and build model-ready data     |
-| `just train`      | `tif-train`                      | Train baselines and deep learning models         |
-| `just evaluate`   | `tif-evaluate`                   | Evaluate models on chronological splits          |
-| `just plots`      | `tif-plots`                      | Generate figures for reports and article drafts  |
-| `just run`        | stage recipe chain               | Run download, preprocess, train, evaluate, plots |
-| `just check`      | formatting and lint commands     | Run formatting and lint checks                   |
-| `just fix`        | formatting and lint fix commands | Apply automated formatting and lint fixes        |
-| `just ci`         | `just check` and `just test`     | Run the full verification gate                   |
+| Recipe            | Console entrypoint               | Responsibility                                |
+| ----------------- | -------------------------------- | --------------------------------------------- |
+| `just sync`       | `uv sync`                        | Install or update the Python environment      |
+| `just download`   | `tif-download`                   | Download numeric data and text sources        |
+| `just preprocess` | `tif-preprocess`                 | Clean raw sources and build model-ready data  |
+| `just train`      | `tif-train`                      | Train baselines and deep learning models      |
+| `just evaluate`   | `tif-evaluate`                   | Evaluate models and generate report figures   |
+| `just run`        | stage recipe chain               | Run download, preprocess, train, and evaluate |
+| `just check`      | formatting and lint commands     | Run formatting and lint checks                |
+| `just fix`        | formatting and lint fix commands | Apply automated formatting and lint fixes     |
+| `just ci`         | `just check` and `just test`     | Run the full verification gate                |
 
 ### Deployment
 

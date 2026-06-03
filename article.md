@@ -76,7 +76,7 @@ Replace this section after the extended training run.
 | TextCNN       | TODO           | TODO     | TODO      | TODO                    |
 | Fusion MLP    | TODO           | TODO     | TODO      | TODO                    |
 
-Generated figures after `just plots`:
+Generated figures after `just evaluate`:
 
 - `output/figures/cpi_history.png`
 - `output/figures/feature_coverage.png`
@@ -98,7 +98,6 @@ For a longer final training run:
 ```bash
 TIF_EPOCHS=200 TIF_PATIENCE=20 just train
 just evaluate
-just plots
 ```
 
 ## Limitations

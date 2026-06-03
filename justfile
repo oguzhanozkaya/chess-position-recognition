@@ -18,7 +18,7 @@ sync:
 
 # Run the full pipeline
 [group('run')]
-run: download preprocess train evaluate plots
+run: download preprocess train evaluate
 
 # Download numeric data and text sources
 [group('run')]
@@ -36,15 +36,10 @@ preprocess:
 train:
   uv run tif-train
 
-# Evaluate models on chronological splits
+# Evaluate models on chronological splits and generate figures
 [group('run')]
 evaluate:
   uv run tif-evaluate
-
-# Generate figures for reports and article drafts
-[group('run')]
-plots:
-  uv run tif-plots
 
 
 # Fix: format and lint

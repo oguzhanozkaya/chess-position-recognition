@@ -26,7 +26,6 @@ tif-download = "tif.download:main"
 tif-preprocess = "tif.preprocess:main"
 tif-train = "tif.train:main"
 tif-evaluate = "tif.evaluate:main"
-tif-plots = "tif.plots:main"
 
 [dependency-groups]
 dev = [

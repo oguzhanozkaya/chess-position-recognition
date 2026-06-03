@@ -21,3 +21,15 @@ def test_build_metrics_table_adds_baseline_delta() -> None:
     ridge = metrics.set_index("model_name").loc["ridge"]
     assert ridge["mae"] == pytest.approx(0.2)
     assert ridge["mae_improvement_vs_last_value"] == pytest.approx(0.8)
+
+
+def test_best_model_from_metrics_prefers_validation_mae() -> None:
+    metrics = pd.DataFrame(
+        {
+            "split": ["validation", "validation", "test"],
+            "model_name": ["slow", "fast", "test_best"],
+            "mae": [2.0, 1.0, 0.1],
+        }
+    )
+
+    assert tif.evaluate._best_model_from_metrics(metrics) == "fast"

@@ -95,7 +95,7 @@ Current data foundation artifacts:
 | `output/models/*.pt`                     | `just train`      | Raw PyTorch model checkpoints                         |
 | `output/predictions/predictions.*`       | `just train`      | Forecasts for all models and chronological splits     |
 | `output/reports/metrics.*`               | `just evaluate`   | MAE, RMSE, direction accuracy, and baseline deltas    |
-| `output/figures/*.png`                   | `just plots`      | CPI, prediction, residual, and comparison figures     |
+| `output/figures/*.png`                   | `just evaluate`   | CPI, prediction, residual, and comparison figures     |
 
 ## Usage
 
@@ -142,7 +142,6 @@ just download
 just preprocess
 just train
 just evaluate
-just plots
 ```
 
 Training runtime can be controlled through environment variables without changing the command interface:

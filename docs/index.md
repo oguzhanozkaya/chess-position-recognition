@@ -14,7 +14,7 @@ hide:
 </h3>
 
 <h3 align="center" style="margin: 1em; margin-bottom: 3em;">
-    <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Presentation</a>
+    <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Medium Article</a> - <a href="https://raw.githubusercontent.com/oguzhanozkaya/chess-position-recognition/refs/heads/main/presentation/chess-position-recognition.tex">Presentation</a>
 </h3>
 
 <div class="grid cards" markdown>

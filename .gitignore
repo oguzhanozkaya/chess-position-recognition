@@ -17,6 +17,8 @@ __pycache__/
 .ruff_cache/
 node_modules/
 .site/
+presentation/build/
+presentation/*.pdf
 
 # Local dataset files.
 data/*

@@ -43,6 +43,8 @@ description: Conventions, rules and policies for project development.
 - `just run` runs the full pipeline: read images, split, train, and evaluate.
 - `just smoke` runs a short CPU smoke pipeline with a small image limit.
 - `just docs` serves the documentation site locally.
+- `just presentation-build` builds the Beamer presentation PDF from `presentation/chess-position-recognition.tex`.
+- `just presentation-clean` removes generated presentation build artifacts.
 
 Training, architecture, and performance defaults are controlled by Python constants near the top of `cpr.py`. Edit those constants before running the script.
 
@@ -60,6 +62,7 @@ The current repository does not keep a separate test suite. Verification focuses
 
 - `just check` for formatting and linting;
 - `just smoke` for a short end-to-end run;
+- `just presentation-build` for presentation build verification;
 - generated metrics and reports under `output/reports/` for model behavior.
 
 Training quality should be verified with generated reports and metrics, not unit tests.

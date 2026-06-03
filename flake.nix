@@ -1,5 +1,5 @@
 {
-  description = "turkish-inflation-forecasting flake";
+  description = "chess-position-recognition flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -8,7 +8,7 @@
   outputs =
     { self, nixpkgs }:
     let
-      project = "turkish-inflation-forecasting";
+      project = "chess-position-recognition";
 
       system = "x86_64-linux";
       pkgs = import nixpkgs {
@@ -41,6 +41,9 @@
             bun
             uv
             pkg-config
+            texlive.combined.scheme-full
+            montserrat
+            source-sans
           ];
         };
 

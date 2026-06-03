@@ -46,3 +46,14 @@ docs:
 [group('docs')]
 docs-build:
   uv run --only-group docs zensical build --clean
+
+[group('presentation')]
+presentation-build:
+  mkdir -p presentation/build
+  lualatex --interaction=nonstopmode --halt-on-error --output-directory=presentation/build presentation/chess-position-recognition.tex
+  cp presentation/build/chess-position-recognition.pdf presentation/chess-position-recognition.pdf
+
+[group('presentation')]
+presentation-clean:
+  rm -rf presentation/build
+  rm -f presentation/chess-position-recognition.pdf

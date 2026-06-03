@@ -19,6 +19,8 @@ The repository is command-first and centered on one root script.
 │   ├── models/                # PyTorch checkpoints
 │   ├── predictions/           # Square prediction outputs
 │   └── reports/               # Metrics and generated summaries
+├── presentation/
+│   └── chess-position-recognition.tex # Single-file Beamer presentation source
 ├── cpr.py                     # Read, train, evaluate, and generate artifacts
 ├── article.md                 # Article draft using generated outputs
 ├── justfile                   # Project command wrapper
@@ -56,6 +58,8 @@ No `data/processed/` cache is used by the active pipeline. Images and filename l
 | `output/predictions/` | Prediction CSV and Parquet outputs                             | ignored            |
 | `output/reports/`     | Metrics, class reports, training summaries, and history tables | ignored            |
 | `output/figures/`     | Training and evaluation plots                                  | ignored by default |
+| `presentation/build/`  | Intermediate TeX build files                                   | ignored            |
+| `presentation/*.pdf`   | Generated presentation PDFs                                    | ignored            |
 
 ## Command Interface
 
@@ -67,6 +71,8 @@ No `data/processed/` cache is used by the active pipeline. Images and filename l
 | `just check` | formatting and lint checks | Verify source and documentation style    |
 | `just fix`   | format and lint fixes      | Apply automated formatting fixes         |
 | `just ci`    | `just check`               | Run the current verification gate        |
+| `just presentation-build` | `lualatex` build       | Build the Beamer presentation PDF        |
+| `just presentation-clean` | generated file cleanup  | Remove presentation build artifacts      |
 
 ### Deployment
 

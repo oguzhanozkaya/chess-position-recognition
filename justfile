@@ -8,11 +8,11 @@ sync:
 [group('run')]
 [default]
 run:
-  uv run python yrs.py
+  uv run python cpr.py
 
 [group('run')]
 smoke:
-  uv run python -c 'import yrs; yrs.run_pipeline(yrs.Config(device="cpu", epochs=1, patience=1, dataloader_workers=0, mixed_precision=False, row_limit=1000, max_vocab_size=5000, max_sequence_length=96, embedding_dim=64, filter_count=32, hidden_size=64, batch_size=64))'
+  uv run python -c 'import cpr; cpr.run_pipeline(cpr.Config(device="cpu", epochs=1, patience=1, dataloader_workers=0, mixed_precision=False, row_limit=128, image_size=128, batch_size=16))'
 
 [group('qual')]
 fix:

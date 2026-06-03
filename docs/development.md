@@ -13,7 +13,8 @@ description: Conventions, rules and policies for project development.
 - **uv**: Python environment management
 - **Python**: Project-pinned version from `pyproject.toml`
 - **PyTorch**: Raw PyTorch for the neural classifier
-- **scikit-learn**: Metrics and stratified validation split
+- **Pillow**: Image loading and label-preserving image augmentation
+- **scikit-learn**: Metrics and validation split
 - **matplotlib**: Static report figures
 - **numpy/pandas**: Numeric arrays and CSV/report handling
 
@@ -21,30 +22,29 @@ description: Conventions, rules and policies for project development.
 
 - Quote style: double
 - Indent style: space
-- The executable source is the root `yrs.py` script.
+- The executable source is the root `cpr.py` script.
 - Generated reports, figures, predictions, and checkpoints are not source code.
 
 ### Modeling Rules
 
-- Review sentiment is the only target.
-- Kaggle label `1` means `negative`; label `2` means `positive`.
-- The final test CSV is never used for fitting vocabulary, model weights, or early stopping.
-- Vocabulary is built from the active training split only.
-- No processed dataset cache is written; the raw CSV files are read on every run.
-- fastai, pretrained embeddings, pretrained language models, transformer libraries, and language model APIs are not used.
-- The active model is one scratch PyTorch architecture: a TextCNN over learned word embeddings.
-- Text augmentation is limited to training-time word dropout.
+- Board square recognition is the only target.
+- The final test directory is never used for model weights or early stopping.
+- Labels are parsed from dash-separated FEN filename stems on each run.
+- No processed dataset cache is written; raw image files are read on every run.
+- fastai, pretrained models, pretrained weights, and transfer learning are not used.
+- The active model is one scratch PyTorch architecture: a residual CNN with one 13-class output per board square.
+- Image augmentation must preserve the square labels. Horizontal and vertical flips must flip the label grid in the same direction.
 
 ## Workflow
 
 ### Development Commands
 
 - `just sync` installs the Python environment.
-- `just run` runs the full pipeline: read data, split, build vocabulary, train, and evaluate.
-- `just smoke` runs a short CPU smoke pipeline with a small row limit.
+- `just run` runs the full pipeline: read images, split, train, and evaluate.
+- `just smoke` runs a short CPU smoke pipeline with a small image limit.
 - `just docs` serves the documentation site locally.
 
-Training, architecture, and performance defaults are controlled by Python constants near the top of `yrs.py`. Edit those constants before running the script.
+Training, architecture, and performance defaults are controlled by Python constants near the top of `cpr.py`. Edit those constants before running the script.
 
 ### Quality and Verification Commands
 
@@ -66,8 +66,8 @@ Training quality should be verified with generated reports and metrics, not unit
 
 ## Reproducibility
 
-- Raw Yelp CSV files are placed locally under `data/`.
-- Vocabulary and encoded sequences are rebuilt in memory each run.
+- Raw chessboard image files are placed locally under `data/train/` and `data/test/`.
+- Image labels are parsed from filenames in memory each run.
 - Model outputs are generated locally under `output/`.
 - Random seeds are controlled by `Config.seed`.
 - Evaluation commands write machine-readable metrics to `output/reports/`.

@@ -2,41 +2,43 @@
 
 ## Project Scope
 
-This project predicts Yelp review polarity from raw review text. The target is binary sentiment: `negative` or `positive`.
+This project recognizes chess board positions from schematic board images. The target is the piece or empty state at each of the 64 board squares.
 
-The pipeline is a single root script, `yrs.py`. It reads the local Kaggle Yelp CSV files from `data/` on every run, builds an in-memory vocabulary from the training split, trains one scratch PyTorch TextCNN classifier, and writes evaluation artifacts.
+The pipeline is a single root script, `cpr.py`. It reads the local Kaggle Chess Positions images from `data/` on every run, parses labels from filenames in memory, trains one scratch PyTorch CNN, and writes evaluation artifacts.
 
-## Forecast Target
+## Recognition Target
 
-| Field        | Definition                                                       |
-| ------------ | ---------------------------------------------------------------- |
-| Target       | Yelp review sentiment: `negative` or `positive`                  |
-| Input        | Raw English review text                                          |
-| Label rule   | Kaggle label `1` maps to `negative`; label `2` maps to `positive` |
-| Split rule   | Stratified validation split from `data/train.csv`; final test uses `data/test.csv` |
-| Main metrics | Accuracy, macro F1, and log loss                                 |
+| Field        | Definition                                                                    |
+| ------------ | ----------------------------------------------------------------------------- |
+| Target       | 64 square labels: `empty`, white pieces, or black pieces                      |
+| Input        | 400 by 400 RGB chessboard image                                               |
+| Label rule   | Filename stem is FEN ranks with dashes instead of slashes                     |
+| Split rule   | Random validation split from `data/train/`; final test uses `data/test/`      |
+| Main metric  | Square-level accuracy                                                         |
+| Extra metrics | Occupied-square accuracy, empty-square accuracy, and full-board accuracy     |
 
 ## Inputs
 
-The source dataset is [Yelp Review Dataset](https://www.kaggle.com/datasets/ilhamfp31/yelp-review-dataset). The dataset must be placed locally under `data/` before running the pipeline.
+The source dataset is [Chess Positions](https://www.kaggle.com/datasets/koryakinp/chess-positions). The dataset must be placed locally under `data/` before running the pipeline.
 
-| File             | Format                  | Purpose                         |
-| ---------------- | ----------------------- | ------------------------------- |
-| `data/train.csv` | Headerless CSV: label, text | Training and validation source |
-| `data/test.csv`  | Headerless CSV: label, text | Final held-out evaluation      |
+| Path           | Format                  | Purpose                         |
+| -------------- | ----------------------- | ------------------------------- |
+| `data/train/`  | JPEG board images       | Training and validation source  |
+| `data/test/`   | JPEG board images       | Final held-out evaluation       |
 
-No Kaggle download step is implemented. No processed dataset cache is written; text preprocessing is rebuilt in memory on each run.
+No Kaggle download step is implemented. No processed dataset cache is written; images and filename labels are read on each run.
 
 ## Data Contract
 
-Each row represents one Yelp review.
+Each image represents one chessboard.
 
-| Field Group | Required Content                                      |
-| ----------- | ----------------------------------------------------- |
-| Label       | Raw label `1` or `2`, mapped to numeric class id      |
-| Text        | Review text tokenized by the pipeline                 |
-| Split       | `train`, `validation`, or `test`                      |
-| Vocabulary  | Built only from the active training split each run    |
+| Field Group | Required Content                                                   |
+| ----------- | ------------------------------------------------------------------ |
+| Image       | RGB chessboard image                                               |
+| Label       | Filename stem containing 8 dash-separated FEN ranks                |
+| Squares     | 64 labels mapped to 13 class ids                                   |
+| Split       | `train`, `validation`, or `test`                                   |
+| Classes     | `empty`, `P`, `N`, `B`, `R`, `Q`, `K`, `p`, `n`, `b`, `r`, `q`, `k` |
 
 ## Outputs
 
@@ -65,39 +67,33 @@ just smoke
 Direct script run:
 
 ```bash
-uv run python yrs.py
+uv run python cpr.py
 ```
 
 ## Configuration
 
-Pipeline and model settings are Python constants near the top of `yrs.py`. Edit those constants before running the script.
+Pipeline and model settings are Python constants near the top of `cpr.py`. Edit those constants before running the script.
 
 | Constant                    | Default                 | Description                                      |
 | --------------------------- | ----------------------- | ------------------------------------------------ |
 | `SEED`                      | `67`                    | Random seed.                                     |
-| `EPOCHS`                    | `20`                    | Maximum training epochs.                         |
-| `PATIENCE`                  | `4`                     | Early-stopping patience.                         |
-| `BATCH_SIZE`                | `256`                   | Mini-batch size.                                 |
-| `LEARNING_RATE`             | `0.001`                 | AdamW learning rate.                             |
+| `EPOCHS`                    | `40`                    | Maximum training epochs.                         |
+| `PATIENCE`                  | `6`                     | Early-stopping patience.                         |
+| `BATCH_SIZE`                | `128`                   | Mini-batch image count.                          |
+| `LEARNING_RATE`             | `0.0008`                | AdamW learning rate.                             |
 | `WEIGHT_DECAY`              | `0.0001`                | AdamW weight decay.                              |
 | `DEVICE`                    | `cuda`                  | Training device: `cuda`, `cpu`, or `auto`.       |
-| `VALIDATION_SIZE`           | `0.1`                   | Stratified validation fraction from train CSV.   |
-| `MAX_VOCAB_SIZE`            | `80000`                 | Maximum vocabulary size including special tokens. |
-| `MIN_TOKEN_FREQUENCY`       | `2`                     | Minimum frequency for vocabulary inclusion.      |
-| `MAX_SEQUENCE_LENGTH`       | `256`                   | Review token length after truncation/padding.    |
-| `EMBEDDING_DIM`             | `256`                   | Learned word embedding width.                    |
-| `FILTER_COUNT`              | `256`                   | Filters per convolution width.                   |
-| `KERNEL_SIZES`              | `(2, 3, 4, 5)`          | TextCNN convolution widths.                      |
-| `HIDDEN_SIZE`               | `256`                   | Classifier hidden size.                          |
-| `DROPOUT`                   | `0.45`                  | Classifier dropout.                              |
-| `WORD_DROPOUT`              | `0.04`                  | Training-time token replacement augmentation.    |
-| `LABEL_SMOOTHING`           | `0.02`                  | Cross-entropy label smoothing.                   |
+| `VALIDATION_SIZE`           | `0.1`                   | Validation fraction from training images.        |
+| `IMAGE_SIZE`                | `256`                   | Resized image side length.                       |
+| `DROPOUT`                   | `0.15`                  | CNN dropout.                                     |
+| `LABEL_SMOOTHING`           | `0.01`                  | Cross-entropy label smoothing.                   |
+| `EMPTY_CLASS_WEIGHT`        | `0.45`                  | Loss weight for empty squares.                   |
 | `DATALOADER_WORKERS`        | `4`                     | DataLoader worker count.                         |
 | `MIXED_PRECISION`           | `True`                  | Use CUDA automatic mixed precision.              |
 | `COMPILE_MODEL`             | `False`                 | Compile the PyTorch model before training.       |
-| `ROW_LIMIT`                 | `0`                     | Optional smoke/debug row limit; `0` means all.   |
+| `ROW_LIMIT`                 | `0`                     | Optional smoke/debug image limit; `0` means all. |
 | `CHECKPOINT_INTERVAL_EPOCHS` | `1`                    | Save periodic checkpoints every N epochs.        |
 
 ## Success Criteria
 
-The project is complete when `just run` reads the local Yelp CSV files, trains the scratch PyTorch TextCNN, evaluates validation and test splits, and generates report-ready outputs. The only expected remaining work after migration is running extended local GPU training and filling final article metrics.
+The project is complete when `just run` reads local chessboard images, trains the scratch PyTorch CNN, evaluates validation and test splits, and generates report-ready outputs. The only expected remaining work after migration is running extended local RTX 4080 training and filling final article metrics.

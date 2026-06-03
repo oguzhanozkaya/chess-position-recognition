@@ -6,37 +6,37 @@ description: System Architecture.
 
 ## Design Principles
 
-- Reproducibility comes before convenience. Training and evaluation are command-driven by `yrs.py`.
-- The target is binary Yelp review sentiment.
-- Raw CSV files are read every run; no processed dataset cache is written.
-- The final test CSV is isolated from vocabulary fitting, model training, and early stopping.
+- Reproducibility comes before convenience. Training and evaluation are command-driven by `cpr.py`.
+- The target is chess square recognition across all 64 board squares.
+- Raw image files are read every run; no processed dataset cache is written.
+- The final test directory is isolated from model training and early stopping.
 - Deep learning is implemented with raw PyTorch.
-- fastai, pretrained embeddings, pretrained language models, transformer libraries, and language model APIs are not used.
-- The active architecture is intentionally focused: one TextCNN over learned word embeddings and one classifier head.
+- fastai, pretrained models, pretrained weights, and transfer learning are not used.
+- The active architecture is intentionally focused: one residual CNN with one 13-class output per square.
 
 ## Decisions
 
 | Area               | Decision                                            |
 | ------------------ | --------------------------------------------------- |
-| Script             | `yrs.py`                                            |
-| Dataset            | Kaggle Yelp Review Dataset under `data/`            |
-| Target             | Review polarity: `negative` or `positive`           |
+| Script             | `cpr.py`                                            |
+| Dataset            | Kaggle Chess Positions under `data/`                |
+| Target             | 64 square labels per board image                    |
 | Modeling framework | Raw PyTorch                                         |
-| Architecture       | Scratch TextCNN over learned word embeddings        |
-| Validation         | Stratified split from `data/train.csv`              |
-| Command interface  | `just run` wrapping `uv run python yrs.py`          |
+| Architecture       | Scratch residual board CNN                          |
+| Validation         | Random split from `data/train/`                     |
+| Command interface  | `just run` wrapping `uv run python cpr.py`          |
 
 ## Data Flow
 
 ```mermaid
 flowchart TD
-    A[data/train.csv] --> B[yrs.py]
-    C[data/test.csv] --> B
-    B --> D[Stratified train/validation split]
-    D --> E[Build vocabulary from train only]
-    E --> F[Encode padded token sequences]
-    F --> G[Train scratch TextCNN]
-    G --> H[output/models/scratch_text_cnn.pt]
+    A[data/train images] --> B[cpr.py]
+    C[data/test images] --> B
+    B --> D[Random train/validation split]
+    D --> E[Parse FEN filename labels]
+    E --> F[Load and augment images]
+    F --> G[Train scratch board CNN]
+    G --> H[output/models/scratch_board_cnn.pt]
     G --> I[output/predictions]
     I --> J[Evaluate validation and test]
     J --> K[output/reports]
@@ -45,8 +45,8 @@ flowchart TD
 
 The pipeline has four responsibilities:
 
-1. Read local Yelp CSV files.
-2. Build an in-memory NLP representation from the active training split.
+1. Read local chessboard images.
+2. Parse 64 square labels from filename stems.
 3. Train one scratch neural classifier.
 4. Generate prediction, metric, report, and figure artifacts.
 
@@ -54,44 +54,41 @@ The pipeline has four responsibilities:
 
 ```mermaid
 flowchart TD
-    A[data/train.csv] --> B[Stratified split]
+    A[data/train images] --> B[Random split]
     B --> C[Train]
     B --> D[Validation]
-    E[data/test.csv] --> F[Final test]
+    E[data/test images] --> F[Final test]
 ```
 
-The validation split is stratified so negative and positive examples remain balanced. `data/test.csv` is loaded only for final evaluation.
+The validation split is created from `data/train/`. `data/test/` is loaded only for final evaluation.
 
-## Text Processing Rules
+## Image Processing Rules
 
 | Step             | Rule                                                                           |
 | ---------------- | ------------------------------------------------------------------------------ |
-| Label mapping    | `1` to `negative`, `2` to `positive`                                           |
-| Tokenization     | Lowercase regex tokenization for words, simple contractions, digits, punctuation |
-| Vocabulary       | Built from the train split only                                                |
-| Unknown tokens   | Out-of-vocabulary tokens map to `<unk>`                                        |
-| Padding          | Sequences are padded or truncated to `MAX_SEQUENCE_LENGTH`                     |
-| Augmentation     | Training-time word dropout replaces random non-padding tokens with `<unk>`     |
+| Label mapping    | FEN piece letters map to 12 piece classes; digits map to `empty` squares       |
+| Image loading    | Files are opened as RGB images from `data/train/` or `data/test/`              |
+| Resizing         | Images are resized to `IMAGE_SIZE` before tensor conversion                    |
+| Normalization    | RGB channels are scaled to `[-1, 1]`                                           |
+| Augmentation     | Training-time flips update the label grid; brightness/contrast/color preserve labels |
 
 ## Model
 
 ```mermaid
 flowchart TD
-    A[Token ids] --> B[Learned embeddings]
-    B --> C[Parallel 1D convolutions]
-    C --> D[Global max pooling]
-    D --> E[Classifier MLP]
-    E --> F[Negative/Positive logits]
+    A[RGB board image] --> B[Residual convolution stages]
+    B --> C[8 by 8 feature map]
+    C --> D[1 by 1 classification head]
+    D --> E[13-class logits per square]
 ```
 
-The model is `TextCNN` in `yrs.py`.
+The model is `BoardCNN` in `cpr.py`.
 
-For each review:
+For each board image:
 
-- token ids are mapped to learned embeddings;
-- parallel convolution filters with widths 2, 3, 4, and 5 detect sentiment phrases;
-- global max pooling keeps the strongest activation per filter;
-- a dropout-regularized MLP predicts binary sentiment logits.
+- residual convolution stages learn board, square, and piece visual features;
+- the spatial resolution is reduced to an 8 by 8 grid aligned with board squares;
+- a convolutional classifier emits 13-class logits at each square location.
 
 The architecture is scratch-trained. There is no transfer from external model weights.
 
@@ -101,8 +98,9 @@ Evaluation reports classification quality for train, validation, and test splits
 
 | Metric                        | Purpose                                      |
 | ----------------------------- | -------------------------------------------- |
-| Accuracy                      | Overall correct sentiment predictions        |
-| Macro F1                      | Class-balanced quality                       |
-| Log loss                      | Probability quality and confidence penalty   |
+| Square accuracy               | Primary metric for all 64 square predictions |
+| Occupied-square accuracy      | Piece recognition quality excluding empty squares |
+| Empty-square accuracy         | Empty square recognition quality             |
+| Board accuracy                | Fraction of images with all 64 squares correct |
 | Per-class precision/recall/F1 | Class-specific behavior                      |
-| Confusion matrix              | Error structure across sentiment classes     |
+| Confusion matrix              | Error structure across square classes        |

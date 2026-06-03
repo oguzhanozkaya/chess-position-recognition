@@ -1,18 +1,18 @@
 <p align="center"> <img src="docs/_assets/logo.svg" alt="Logo" width="120em" /> </p>
 
-<h1 align="center" style="margin: 0;"> Yelp Review Sentiment </h1>
+<h1 align="center" style="margin: 0;"> Chess Position Recognition </h1>
 
 <h3 align="center" style="margin: 0.6em;">
-    Classifying Yelp review polarity with scratch PyTorch NLP models.
+    Recognizing the piece on every chessboard square with scratch PyTorch CNN models.
 </h3>
 
 <h3 align="center" style="margin: 1em; margin-bottom: 3em;">
-    <a href="https://oguzhanozkaya.github.io/yelp-review-sentiment/">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/yelp-review-sentiment/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/yelp-review-sentiment/">Presentation</a>
+    <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Web Page and Documentation</a> - <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Medium Article</a> - <a href="https://oguzhanozkaya.github.io/chess-position-recognition/">Presentation</a>
 </h3>
 
-This project predicts whether a Yelp review is negative or positive from raw review text. The core challenge is building a high-accuracy NLP classifier without fastai, pretrained embeddings, pretrained language models, or transformer libraries.
+This project predicts the contents of all 64 chessboard squares from a board image. The core challenge is building a high-accuracy computer vision classifier without fastai, pretrained models, or pretrained weights.
 
-**Dataset**: [Yelp Review Dataset](https://www.kaggle.com/datasets/ilhamfp31/yelp-review-dataset)
+**Dataset**: [Chess Positions](https://www.kaggle.com/datasets/koryakinp/chess-positions)
 
 **Student**: Oğuzhan Özkaya
 

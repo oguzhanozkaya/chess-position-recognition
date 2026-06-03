@@ -1,72 +1,73 @@
-# Yelp Review Sentiment with Scratch PyTorch TextCNN
+# Chess Position Recognition with a Scratch PyTorch CNN
 
 ## Abstract
 
-This project predicts Yelp review polarity with a reproducible deep learning pipeline. The target is binary sentiment: negative or positive. The model reads raw review text, builds a vocabulary from the active training split, and trains a scratch PyTorch TextCNN without fastai, pretrained embeddings, pretrained language models, transformer libraries, or language model APIs.
+This project predicts the piece or empty state at every square of a chessboard image with a reproducible deep learning pipeline. The model reads local board images, parses the square labels from dash-separated FEN filenames, and trains a scratch PyTorch convolutional neural network without fastai, pretrained models, pretrained weights, or transfer learning.
 
 Final result placeholders in this article should be filled after the extended RTX 4080 training run.
 
 ## Problem Definition
 
-Each row represents one Yelp review. The model receives the review text and predicts whether the original polarity label is negative or positive.
+Each image represents one chessboard. The model receives the board image and predicts one of 13 labels for each of the 64 board squares.
 
-| Raw Label | Class      |
-| --------- | ---------- |
-| `1`       | `negative` |
-| `2`       | `positive` |
+| Class Group | Labels                                      |
+| ----------- | ------------------------------------------- |
+| Empty       | `empty`                                     |
+| White       | `P`, `N`, `B`, `R`, `Q`, `K`                |
+| Black       | `p`, `n`, `b`, `r`, `q`, `k`                |
 
 ## Data
 
-Raw data comes from the [Yelp Review Dataset](https://www.kaggle.com/datasets/ilhamfp31/yelp-review-dataset). The files are placed locally before running the pipeline:
+Raw data comes from the [Chess Positions](https://www.kaggle.com/datasets/koryakinp/chess-positions) dataset. The files are placed locally before running the pipeline:
 
-- `data/train.csv` for training and validation.
-- `data/test.csv` for final held-out evaluation.
+- `data/train/` for training and validation images.
+- `data/test/` for final held-out evaluation images.
 
-Both files are headerless CSV files with label in the first column and review text in the second column. The pipeline reads these files on every run. No processed dataset cache is written.
+Each image is a 400 by 400 schematic chessboard. The filename stem is a FEN board description with dashes instead of slashes. The pipeline reads these image files on every run. No processed dataset cache is written.
 
-## Text Processing
+## Image Processing
 
-The pipeline builds the text representation in memory:
+The pipeline builds labels and tensors in memory:
 
-- lowercase regex tokenization extracts words, simple contractions, digits, and punctuation;
-- the vocabulary is built only from the training split;
-- rare and unseen tokens map to `<unk>`;
-- reviews are padded or truncated to a fixed token length;
-- training-time word dropout randomly replaces non-padding tokens with `<unk>` as augmentation.
+- dash-separated FEN ranks are expanded into an 8 by 8 label grid;
+- piece letters map to piece classes and digits expand to `empty` squares;
+- images are opened as RGB, resized to `IMAGE_SIZE`, and normalized to `[-1, 1]`;
+- training-time horizontal and vertical flips also flip the label grid;
+- brightness, contrast, and color jitter preserve the square labels.
 
 ## Model
 
-Only one active architecture is trained: a scratch TextCNN classifier implemented directly with PyTorch.
+Only one active architecture is trained: a scratch residual CNN implemented directly with PyTorch.
 
-For each review:
+For each board:
 
-- token ids are mapped to learned word embeddings;
-- parallel 1D convolution filters with multiple widths detect local sentiment phrases;
-- global max pooling keeps the strongest activation from each filter bank;
-- a dropout-regularized MLP predicts negative/positive logits.
+- residual convolution stages learn board, square, and piece visual features;
+- downsampling produces an 8 by 8 feature map aligned to board squares;
+- a convolutional classification head emits 13-class logits for every square.
 
-This architecture is appropriate for the course scope because it exercises natural language processing, convolutional neural networks, data preprocessing, augmentation, optimization, and end-to-end PyTorch implementation without relying on fastai or pretrained models.
+This architecture is appropriate for the course scope because it exercises convolutional neural networks, data preprocessing, augmentation, optimization, and end-to-end PyTorch implementation without relying on fastai or pretrained models.
 
 ## Evaluation
 
-The training CSV is split into stratified train and validation partitions. The test CSV remains isolated until final evaluation.
+The training image directory is split into train and validation partitions. The test image directory remains isolated until final evaluation.
 
 Metrics:
 
-- Accuracy measures overall correct predictions.
-- Macro F1 measures class-balanced quality.
-- Log loss measures probability quality.
+- Square accuracy measures the percentage of correctly classified board squares and is the primary metric.
+- Occupied-square accuracy measures recognition quality on piece-containing squares.
+- Empty-square accuracy measures empty-square recognition quality.
+- Board accuracy measures the percentage of images where all 64 squares are correct.
 - Per-class precision, recall, and F1 show class-specific behavior.
-- Confusion matrix shows error structure.
+- Confusion matrix shows square-label error structure.
 
 ## Results
 
 Replace this section after the extended training run.
 
-| Split      | Accuracy | Macro F1 | Log Loss |
-| ---------- | -------- | -------- | -------- |
-| Validation | TODO     | TODO     | TODO     |
-| Test       | TODO     | TODO     | TODO     |
+| Split      | Square Accuracy | Occupied Accuracy | Board Accuracy |
+| ---------- | --------------- | ----------------- | -------------- |
+| Validation | TODO            | TODO              | TODO           |
+| Test       | TODO            | TODO              | TODO           |
 
 Generated figures after `just run`:
 
@@ -74,6 +75,7 @@ Generated figures after `just run`:
 - `output/figures/class_distribution.png`
 - `output/figures/prediction_confidence.png`
 - `output/figures/training_loss.png`
+- `output/figures/training_accuracy.png`
 
 ## Reproducibility
 
@@ -92,4 +94,4 @@ just smoke
 
 ## Limitations
 
-The model uses a word-level vocabulary, so rare spelling variants and unusual tokens can map to `<unk>`. Long reviews are truncated to the configured maximum sequence length. Final report quality depends on the extended local GPU training run and may improve with careful tuning of vocabulary size, sequence length, dropout, and convolution width.
+The model assumes aligned full-board schematic images matching the dataset contract. Images are resized to the configured `IMAGE_SIZE`, so final quality may improve with careful tuning of image size, batch size, learning rate, dropout, and empty-square loss weighting. Final report quality depends on the extended local GPU training run.

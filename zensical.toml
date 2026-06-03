@@ -1,10 +1,10 @@
 [project]
-site_name = "Yelp Review Sentiment"
-site_description = "Classifying Yelp review sentiment with scratch PyTorch NLP models."
+site_name = "Chess Position Recognition"
+site_description = "Recognizing chess pieces on every board square with scratch PyTorch CNN models."
 site_author = "Oğuzhan Özkaya"
-site_url = "https://oguzhanozkaya.github.io/yelp-review-sentiment/"
-repo_url = "https://github.com/oguzhanozkaya/yelp-review-sentiment"
-repo_name = "yelp-review-sentiment"
+site_url = "https://oguzhanozkaya.github.io/chess-position-recognition/"
+repo_url = "https://github.com/oguzhanozkaya/chess-position-recognition"
+repo_name = "chess-position-recognition"
 copyright = "ADA 447 Introduction to Deep Learning - TED University"
 
 docs_dir = "docs"

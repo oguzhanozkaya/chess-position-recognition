@@ -46,7 +46,7 @@ description: Conventions, rules and policies for project development.
 - `just smoke` runs a short CPU smoke pipeline with a small match limit.
 - `just docs` serves the documentation site locally.
 
-Training, architecture, and performance defaults are controlled through environment variables documented in `docs/spec.md`. Use environment variables for smaller or longer runs, for example `FIP_DEVICE=cpu FIP_EPOCHS=1 FIP_PATIENCE=1 just run`.
+Training, architecture, and performance defaults are controlled by Python constants near the top of `fig.py`. Edit those constants before running the script.
 
 ### Quality and Verification Commands
 

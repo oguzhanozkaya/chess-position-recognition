@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import random
 import re
 import subprocess
@@ -40,7 +39,36 @@ MODELS_DIR = OUTPUT_DIR / "models"
 PREDICTIONS_DIR = OUTPUT_DIR / "predictions"
 REPORTS_DIR = OUTPUT_DIR / "reports"
 
-KAGGLE_DATASET = os.environ.get("FIP_KAGGLE_DATASET", "excel4soccer/espn-soccer-data")
+KAGGLE_DATASET = "excel4soccer/espn-soccer-data"
+
+# Pipeline and model hyperparameters. Edit these constants before running the
+# script instead of passing environment variables.
+SEED = 67
+EPOCHS = 24000
+PATIENCE = 2400
+BATCH_SIZE = 1024
+LEARNING_RATE = 0.001
+WEIGHT_DECAY = 0.0001
+EARLY_STOPPING_MIN_DELTA = 0.001
+DEVICE = "cuda"
+CUTOFF_MINUTE = 60
+MAX_TOKENS = 256
+MAX_VOCAB_SIZE = 600
+TOP_PLAY_TYPES = 30
+TOP_KEY_EVENT_TYPES = 24
+TOP_FORMATIONS = 12
+TEXT_EMBEDDING_DIM = 64
+TEXT_CHANNEL_COUNT = 48
+TEXT_KERNEL_SIZES = (3, 4, 5)
+TEXT_DROPOUT = 0.25
+NUMERIC_HIDDEN_SIZE = 128
+FUSION_HIDDEN_SIZE = 128
+DROPOUT = 0.06
+DATALOADER_WORKERS = 4
+MIXED_PRECISION = True
+COMPILE_MODEL = False
+MATCH_LIMIT = 0
+
 LABELS = ("home", "draw", "away")
 LABEL_TO_ID = {label: index for index, label in enumerate(LABELS)}
 ID_TO_LABEL = {index: label for label, index in LABEL_TO_ID.items()}
@@ -54,35 +82,31 @@ TOKEN_PATTERN = re.compile(r"\b\w+\b", re.UNICODE)
 
 @dataclass(frozen=True)
 class Config:
-    seed: int = int(os.environ.get("FIP_SEED", "67"))
-    epochs: int = int(os.environ.get("FIP_EPOCHS", "1200"))
-    patience: int = int(os.environ.get("FIP_PATIENCE", "50"))
-    batch_size: int = int(os.environ.get("FIP_BATCH_SIZE", "512"))
-    learning_rate: float = float(os.environ.get("FIP_LEARNING_RATE", "0.0001"))
-    weight_decay: float = float(os.environ.get("FIP_WEIGHT_DECAY", "0.0001"))
-    min_delta: float = float(os.environ.get("FIP_EARLY_STOPPING_MIN_DELTA", "0.001"))
-    device: str = os.environ.get("FIP_DEVICE", "cuda")
-    cutoff_minute: int = int(os.environ.get("FIP_CUTOFF_MINUTE", "45"))
-    max_tokens: int = int(os.environ.get("FIP_MAX_TOKENS", "256"))
-    max_vocab_size: int = int(os.environ.get("FIP_MAX_VOCAB_SIZE", "6000"))
-    top_play_types: int = int(os.environ.get("FIP_TOP_PLAY_TYPES", "30"))
-    top_key_event_types: int = int(os.environ.get("FIP_TOP_KEY_EVENT_TYPES", "24"))
-    top_formations: int = int(os.environ.get("FIP_TOP_FORMATIONS", "12"))
-    text_embedding_dim: int = int(os.environ.get("FIP_TEXT_EMBEDDING_DIM", "64"))
-    text_channel_count: int = int(os.environ.get("FIP_TEXT_CHANNEL_COUNT", "48"))
-    text_dropout: float = float(os.environ.get("FIP_TEXT_DROPOUT", "0.25"))
-    numeric_hidden_size: int = int(os.environ.get("FIP_NUMERIC_HIDDEN_SIZE", "128"))
-    fusion_hidden_size: int = int(os.environ.get("FIP_FUSION_HIDDEN_SIZE", "128"))
-    dropout: float = float(os.environ.get("FIP_DROPOUT", "0.25"))
-    dataloader_workers: int = int(os.environ.get("FIP_DATALOADER_WORKERS", "4"))
-    mixed_precision: bool = os.environ.get("FIP_MIXED_PRECISION", "true").lower() in {"1", "true", "yes", "on"}
-    compile_model: bool = os.environ.get("FIP_COMPILE_MODEL", "false").lower() in {"1", "true", "yes", "on"}
-    match_limit: int = int(os.environ.get("FIP_MATCH_LIMIT", "0"))
-
-    @property
-    def text_kernel_sizes(self) -> tuple[int, ...]:
-        raw = os.environ.get("FIP_TEXT_KERNEL_SIZES", "3,4,5")
-        return tuple(int(value.strip()) for value in raw.split(",") if value.strip())
+    seed: int = SEED
+    epochs: int = EPOCHS
+    patience: int = PATIENCE
+    batch_size: int = BATCH_SIZE
+    learning_rate: float = LEARNING_RATE
+    weight_decay: float = WEIGHT_DECAY
+    min_delta: float = EARLY_STOPPING_MIN_DELTA
+    device: str = DEVICE
+    cutoff_minute: int = CUTOFF_MINUTE
+    max_tokens: int = MAX_TOKENS
+    max_vocab_size: int = MAX_VOCAB_SIZE
+    top_play_types: int = TOP_PLAY_TYPES
+    top_key_event_types: int = TOP_KEY_EVENT_TYPES
+    top_formations: int = TOP_FORMATIONS
+    text_embedding_dim: int = TEXT_EMBEDDING_DIM
+    text_channel_count: int = TEXT_CHANNEL_COUNT
+    text_kernel_sizes: tuple[int, ...] = TEXT_KERNEL_SIZES
+    text_dropout: float = TEXT_DROPOUT
+    numeric_hidden_size: int = NUMERIC_HIDDEN_SIZE
+    fusion_hidden_size: int = FUSION_HIDDEN_SIZE
+    dropout: float = DROPOUT
+    dataloader_workers: int = DATALOADER_WORKERS
+    mixed_precision: bool = MIXED_PRECISION
+    compile_model: bool = COMPILE_MODEL
+    match_limit: int = MATCH_LIMIT
 
 
 def ensure_dirs() -> None:
@@ -951,8 +975,7 @@ def clean_old_package_artifacts() -> None:
         old_model.unlink()
 
 
-def main() -> None:
-    config = Config()
+def run_pipeline(config: Config) -> None:
     ensure_dirs()
     clean_old_package_artifacts()
     download_kaggle_dataset()
@@ -961,6 +984,10 @@ def main() -> None:
     predictions = train_model(dataset, metadata, config)
     evaluate(predictions)
     print("done: outputs written under output/ and data/processed/")
+
+
+def main() -> None:
+    run_pipeline(Config())
 
 
 if __name__ == "__main__":

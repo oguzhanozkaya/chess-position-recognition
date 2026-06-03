@@ -92,30 +92,32 @@ Never commit `kaggle.json` or credential values.
 
 ## Configuration
 
-| Variable                       | Default  | Description                                      |
-| ------------------------------ | -------- | ------------------------------------------------ |
-| `FIP_SEED`                     | `67`     | Random seed.                                     |
-| `FIP_EPOCHS`                   | `1200`   | Maximum training epochs.                         |
-| `FIP_PATIENCE`                 | `50`     | Early-stopping patience.                         |
-| `FIP_BATCH_SIZE`               | `512`    | Mini-batch size.                                 |
-| `FIP_LEARNING_RATE`            | `0.0001` | AdamW learning rate.                             |
-| `FIP_WEIGHT_DECAY`             | `0.0001` | AdamW weight decay.                              |
-| `FIP_EARLY_STOPPING_MIN_DELTA` | `0.001`  | Minimum validation-loss improvement.             |
-| `FIP_DEVICE`                   | `cuda`   | Training device: `cuda`, `cpu`, or `auto`.       |
-| `FIP_CUTOFF_MINUTE`            | `45`     | Last match minute allowed in model inputs.       |
-| `FIP_MAX_TOKENS`               | `256`    | Maximum first-half text tokens per match.        |
-| `FIP_MAX_VOCAB_SIZE`           | `6000`   | Maximum train-split vocabulary size.             |
-| `FIP_TEXT_EMBEDDING_DIM`       | `64`     | Text embedding dimension.                        |
-| `FIP_TEXT_CHANNEL_COUNT`       | `48`     | TextCNN channels per kernel size.                |
-| `FIP_TEXT_KERNEL_SIZES`        | `3,4,5`  | TextCNN kernel sizes.                            |
-| `FIP_NUMERIC_HIDDEN_SIZE`      | `128`    | Numeric MLP hidden width.                        |
-| `FIP_FUSION_HIDDEN_SIZE`       | `128`    | Final fusion classifier width.                   |
-| `FIP_DROPOUT`                  | `0.25`   | Numeric and fusion dropout.                      |
-| `FIP_TEXT_DROPOUT`             | `0.25`   | Text branch dropout.                             |
-| `FIP_DATALOADER_WORKERS`       | `4`      | DataLoader worker count.                         |
-| `FIP_MIXED_PRECISION`          | `true`   | Use CUDA automatic mixed precision.              |
-| `FIP_COMPILE_MODEL`            | `false`  | Compile the PyTorch model before training.       |
-| `FIP_MATCH_LIMIT`              | `0`      | Optional smoke/debug match limit; `0` means all. |
+Pipeline and model settings are Python constants near the top of `fig.py`. Edit those constants before running the script.
+
+| Constant                   | Default     | Description                                      |
+| -------------------------- | ----------- | ------------------------------------------------ |
+| `SEED`                     | `67`        | Random seed.                                     |
+| `EPOCHS`                   | `1200`      | Maximum training epochs.                         |
+| `PATIENCE`                 | `50`        | Early-stopping patience.                         |
+| `BATCH_SIZE`               | `512`       | Mini-batch size.                                 |
+| `LEARNING_RATE`            | `0.0001`    | AdamW learning rate.                             |
+| `WEIGHT_DECAY`             | `0.0001`    | AdamW weight decay.                              |
+| `EARLY_STOPPING_MIN_DELTA` | `0.001`     | Minimum validation-loss improvement.             |
+| `DEVICE`                   | `cuda`      | Training device: `cuda`, `cpu`, or `auto`.       |
+| `CUTOFF_MINUTE`            | `45`        | Last match minute allowed in model inputs.       |
+| `MAX_TOKENS`               | `256`       | Maximum first-half text tokens per match.        |
+| `MAX_VOCAB_SIZE`           | `6000`      | Maximum train-split vocabulary size.             |
+| `TEXT_EMBEDDING_DIM`       | `64`        | Text embedding dimension.                        |
+| `TEXT_CHANNEL_COUNT`       | `48`        | TextCNN channels per kernel size.                |
+| `TEXT_KERNEL_SIZES`        | `(3, 4, 5)` | TextCNN kernel sizes.                            |
+| `NUMERIC_HIDDEN_SIZE`      | `128`       | Numeric MLP hidden width.                        |
+| `FUSION_HIDDEN_SIZE`       | `128`       | Final fusion classifier width.                   |
+| `DROPOUT`                  | `0.25`      | Numeric and fusion dropout.                      |
+| `TEXT_DROPOUT`             | `0.25`      | Text branch dropout.                             |
+| `DATALOADER_WORKERS`       | `4`         | DataLoader worker count.                         |
+| `MIXED_PRECISION`          | `True`      | Use CUDA automatic mixed precision.              |
+| `COMPILE_MODEL`            | `False`     | Compile the PyTorch model before training.       |
+| `MATCH_LIMIT`              | `0`         | Optional smoke/debug match limit; `0` means all. |
 
 ## Success Criteria
 

@@ -33,7 +33,7 @@ The repository is implemented as a single-script football in-play prediction pip
 
 - `fig.py` runs the complete pipeline from download through evaluation.
 - `just run` executes `uv run python fig.py`.
-- `just smoke` runs a short CPU end-to-end pipeline with `FIP_MATCH_LIMIT=200`.
+- `just smoke` runs a short CPU end-to-end pipeline through a direct `Config` override.
 - The script downloads the Kaggle ESPN Soccer dataset when `data/raw/` is missing required directories.
 - Preprocessing writes `model_dataset.parquet`, metadata, vocabulary, and split summaries.
 - Preprocessing slices plays, key events, and commentary through minute 45 only.

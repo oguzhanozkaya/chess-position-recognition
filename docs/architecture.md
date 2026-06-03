@@ -30,7 +30,7 @@ description: System Architecture.
 ## Data Flow
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[data/raw/base_data] --> D[Download Validation]
     B[data/raw/plays, keyEvents, commentary] --> D
     C[data/raw/lineup_data] --> D
@@ -56,7 +56,7 @@ The pipeline has three core responsibilities:
 ## Sequence Construction
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Match Events] --> B[Filter <= 45]
     C[Commentary Text] --> B
     D[Safe Lineups] --> B
@@ -99,7 +99,7 @@ The default cutoff and window size create 9 sequence steps.
 ## Model
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Token Windows] --> B[Embedding From Scratch]
     B --> C[TextCNN Per Window]
     D[Numeric Windows] --> E[Numeric Projection Per Window]
